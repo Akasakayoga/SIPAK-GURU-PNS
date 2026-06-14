@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "teacher": {
+      "title": "Teacher Profile",
+      "description": "Indonesian Civil Servant (PNS) teacher profile and administrative data.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the teacher with academic degrees." },
+        "nip": { "type": "string", "description": "18-digit unique ID for PNS." },
+        "school": { "type": "string", "description": "School name." },
+        "currentGolongan": { "type": "string", "enum": ["III/a", "III/b", "III/c", "III/d", "IV/a", "IV/b", "IV/c", "IV/d", "IV/e"] },
+        "targetGolongan": { "type": "string", "enum": ["III/a", "III/b", "III/c", "III/d", "IV/a", "IV/b", "IV/c", "IV/d", "IV/e"] },
+        "baseAK": { "type": "number", "description": "Foundation credit points from current rank transition." },
+        "akIntegrasi2022": { "type": "number", "description": "Integration credit points from 2022." },
+        "ratingSKP": { "type": "string", "enum": ["Sangat Baik", "Baik", "Cukup", "Kurang", "Sangat Kurang"] },
+        "workDurationYears": { "type": "number" },
+        "karpegNumber": { "type": "string" },
+        "birthPlaceDate": { "type": "string" },
+        "gender": { "type": "string", "enum": ["Laki-Laki", "Perempuan"] },
+        "tmtCurrentPangkat": { "type": "string" },
+        "tmtCurrentJabatan": { "type": "string" },
+        "unitKerja": { "type": "string" },
+        "instansiBiro": { "type": "string" },
+        "nomorSuratKonversi": { "type": "string" },
+        "nomorSuratAkumulasi": { "type": "string" },
+        "nomorSuratPenetapan": { "type": "string" },
+        "tempatDitetapkan": { "type": "string" },
+        "tanggalPenetapan": { "type": "string" },
+        "pejabatPenilaiTitle": { "type": "string" },
+        "pejabatPenilaiInstansi": { "type": "string" },
+        "pejabatPenilaiNama": { "type": "string" },
+        "pejabatPenilaiNip": { "type": "string" },
+        "pejabatPenilaiGolongan": { "type": "string" },
+        "createdBy": { "type": "string", "description": "User UID of the creator." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "nip", "currentGolongan", "targetGolongan", "createdBy"]
+    },
+    "evaluation": {
+      "title": "SKP Evaluation",
+      "description": "Converted evaluation performance record and credit points.",
+      "type": "object",
+      "properties": {
+        "year": { "type": "number" },
+        "period": { "type": "string" },
+        "rating": { "type": "string", "enum": ["Sangat Baik", "Baik", "Cukup", "Kurang", "Sangat Kurang"] },
+        "level": { "type": "string", "enum": ["Ahli Pertama", "Ahli Muda", "Ahli Madya", "Ahli Utama"] },
+        "coefficient": { "type": "number" },
+        "multiplier": { "type": "number" },
+        "creditEarned": { "type": "number" },
+        "akPendidikan": { "type": "number", "description": "Optional educational credit points from high degree graduation in this evaluation period." },
+        "notes": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "isCustomRange": { "type": "boolean" },
+        "customMonths": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["year", "period", "rating", "level", "coefficient", "multiplier", "creditEarned", "createdBy"]
+    },
+    "kopSettings": {
+      "title": "KOP Settings",
+      "description": "Custom agency header letterhead (KOP) and official logo configurations.",
+      "type": "object",
+      "properties": {
+        "logoType": { "type": "string", "enum": ["svg-jabar", "url"] },
+        "customLogoUrl": { "type": "string" },
+        "row1": { "type": "string" },
+        "row2": { "type": "string" },
+        "row3": { "type": "string" },
+        "row4": { "type": "string" },
+        "row5": { "type": "string" },
+        "row6": { "type": "string" }
+      },
+      "required": ["logoType", "customLogoUrl", "row1", "row2", "row3"]
+    }
+  },
+  "firestore": {
+    "teachers": {
+      "schema": "teacher",
+      "description": "Collection of all civil servant teachers managed by the office."
+    },
+    "teachers/{teacherId}/evaluations": {
+      "schema": "evaluation",
+      "description": "Subcollection under a teacher representing their individual SKP evaluations history."
+    },
+    "settings/{settingsId}": {
+      "schema": "kopSettings",
+      "description": "Collection of global or user-specific custom settings such as agency header configurations."
+    }
+  }
+}

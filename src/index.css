@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+@layer utilities {
+  /* Print and PDF capture page break and optimization utilities */
+  @media print, .capturing-pdf {
+    body, .capturing-pdf {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      font-family: "Times New Roman", Times, serif !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    /* Hide everything that isn't the print content */
+    #top-admin-banner,
+    #top-admin-banner-workspace,
+    aside,
+    nav,
+    footer,
+    header,
+    button,
+    .print\:hidden,
+    .alert-banner {
+      display: none !important;
+    }
+    
+    /* Reset margins and paddings for the printable content wrapper */
+    body, html, #root, .capturing-pdf {
+      background: #ffffff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: auto !important;
+      height: auto !important;
+    }
+    
+    /* Flatten grids and column spacing (excluding children of the print pages) */
+    :not(#pak-print-pages) .grid, .grid-cols-12, main, .lg\:col-span-9, .max-w-\[1600px\] {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Force the printed inner grid inside the official document to remain columns */
+    #pak-print-pages .grid-cols-2 {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 1rem !important;
+    }
+    
+    .print\:hidden {
+      display: none !important;
+    }
+    
+    .print\:block {
+      display: block !important;
+    }
+    
+    .print\:p-0 {
+      padding: 0 !important;
+    }
+    
+    .print\:m-0 {
+      margin: 0 !important;
+    }
+    
+    /* Eliminate vertical margins and gap styles between page canvases */
+    #pak-print-pages {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      padding: 0 !important;
+      gap: 0 !important;
+      
+      /* Redefine all Tailwind v4 colors with standard clean hex codes so that html2canvas doesn't throw OKLCH exceptions */
+      --color-slate-50: #f8fafc !important;
+      --color-slate-100: #f1f5f9 !important;
+      --color-slate-150: #e2e8f0 !important;
+      --color-slate-200: #e2e8f0 !important;
+      --color-slate-300: #cbd5e1 !important;
+      --color-slate-350: #cbd5e1 !important;
+      --color-slate-400: #94a3b8 !important;
+      --color-slate-500: #64748b !important;
+      --color-slate-600: #475569 !important;
+      --color-slate-700: #334155 !important;
+      --color-slate-800: #1e293b !important;
+      --color-slate-900: #0f172a !important;
+      --color-slate-950: #020617 !important;
+
+      --color-teal-50: #f0fdfa !important;
+      --color-teal-100: #ccfbf1 !important;
+      --color-teal-200: #99f6e4 !important;
+      --color-teal-300: #5eead4 !important;
+      --color-teal-400: #2dd4bf !important;
+      --color-teal-500: #14b8a6 !important;
+      --color-teal-600: #0d9488 !important;
+      --color-teal-700: #0f766e !important;
+      --color-teal-800: #115e59 !important;
+      --color-teal-900: #134e4a !important;
+      --color-teal-950: #042f2e !important;
+
+      --color-emerald-50: #ecfdf5 !important;
+      --color-emerald-100: #d1fae5 !important;
+      --color-emerald-250: #a7f3d0 !important;
+      --color-emerald-500: #10b981 !important;
+      --color-emerald-600: #059669 !important;
+      --color-emerald-700: #047857 !important;
+      --color-emerald-800: #065f46 !important;
+      --color-emerald-900: #064e3b !important;
+      --color-emerald-950: #022c22 !important;
+
+      --color-amber-50: #fffbeb !important;
+      --color-amber-100: #fef3c7 !important;
+      --color-amber-200: #fde68a !important;
+      --color-amber-250: #fcd34d !important;
+      --color-amber-55: #fef3c7 !important;
+      --color-amber-250: #fcd34d !important;
+      --color-amber-500: #f59e0b !important;
+      --color-amber-600: #d97706 !important;
+      --color-amber-750: #b45309 !important;
+      --color-amber-900: #78350f !important;
+      --color-amber-950: #451a03 !important;
+
+      --color-white: #ffffff !important;
+      --color-black: #000000 !important;
+    }
+    
+    #pak-print-pages > * + * {
+      margin-top: 0 !important;
+    }
+    
+    /* Each page break canvas matches exactly F4/Folio or default printing dimensions */
+    .page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      
+      margin: 0 auto !important;
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      background: #ffffff !important;
+      
+      /* Standard compact margins and paddings for exactly F4 dimensions */
+      padding: 8mm 12mm 8mm 12mm !important;
+      width: 215mm !important;
+      height: 330mm !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      box-sizing: border-box !important;
+      position: relative !important;
+    }
+    
+    /* Ultra-compact typography and fonts for legal documents on print/PDF */
+    #pak-print-pages .font-serif {
+      font-family: "Times New Roman", Times, serif !important;
+    }
+    
+    #pak-print-pages h1 {
+      font-size: 11px !important;
+      line-height: 1.1 !important;
+      margin-top: 1px !important;
+      margin-bottom: 1px !important;
+    }
+    
+    #pak-print-pages h2 {
+      font-size: 10px !important;
+      line-height: 1.1 !important;
+      margin-top: 1px !important;
+      margin-bottom: 1px !important;
+    }
+    
+    #pak-print-pages h3 {
+      font-size: 9px !important;
+      line-height: 1.1 !important;
+      margin-top: 0.5px !important;
+      margin-bottom: 0.5px !important;
+    }
+    
+    #pak-print-pages p, 
+    #pak-print-pages span, 
+    #pak-print-pages td, 
+    #pak-print-pages th {
+      line-height: 1.05 !important;
+      font-size: 8.5px !important;
+    }
+    
+    /* Table optimizations for printing - tighter rows */
+    #pak-print-pages table {
+      margin-top: 2px !important;
+      margin-bottom: 2px !important;
+    }
+    
+    #pak-print-pages table td, 
+    #pak-print-pages table th {
+      padding-top: 0.8px !important;
+      padding-bottom: 0.8px !important;
+      padding-left: 3px !important;
+      padding-right: 3px !important;
+      line-height: 1.05 !important;
+      font-size: 8.2px !important;
+    }
+    
+    /* Compact Institutional Header */
+    #pak-print-pages .mb-4 {
+      margin-bottom: 2px !important;
+    }
+    
+    #pak-print-pages .pb-3 {
+      padding-bottom: 1px !important;
+    }
+    
+    /* Logo sizing in header */
+    #pak-print-pages .w-20 {
+      width: 58px !important;
+    }
+    
+    #pak-print-pages .h-22 {
+      height: 62px !important;
+    }
+    
+    /* Compact Signature Block */
+    #pak-print-pages .pt-6 {
+      padding-top: 1px !important;
+    }
+    
+    #pak-print-pages .my-4 {
+      margin-top: 1px !important;
+      margin-bottom: 1px !important;
+    }
+    
+    /* Under-table note boxes */
+    #pak-print-pages .my-3 {
+      margin-top: 1px !important;
+      margin-bottom: 1px !important;
+    }
+    
+    #pak-print-pages .p-2.5 {
+      padding: 4px !important;
+    }
+    
+    #pak-print-pages .py-3 {
+      padding-top: 2px !important;
+      padding-bottom: 2px !important;
+    }
+    
+    /* Electronic seal/signature box */
+    #pak-print-pages .max-w-\[280px\] {
+      margin-top: 3px !important;
+      margin-bottom: 3px !important;
+      padding: 3px !important;
+      max-width: 240px !important;
+    }
+    
+    /* Force page height and avoid overflow */
+    .page-break-before {
+      page-break-before: always !important;
+      break-before: page !important;
+    }
+  }
+
+  /* Specific styles for elegant visual formatting */
+  .font-serif {
+    font-family: "Times New Roman", Times, Georgia, serif;
+  }
+}
+
+@page {
+  size: 215mm 330mm;
+  margin: 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* Custom indicator styles */
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}

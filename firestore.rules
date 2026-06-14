@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. GLOBAL SAFETY NET: Default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email != null);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+
+    // Validate a teacher document shape on create/update
+    function isValidTeacher(data) {
+      return data.keys().hasAll(['name', 'nip', 'currentGolongan', 'targetGolongan', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().size() <= 35
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && data.nip is string && data.nip.size() >= 10 && data.nip.size() <= 18
+        && data.currentGolongan is string && data.currentGolongan.size() <= 10
+        && data.targetGolongan is string && data.targetGolongan.size() <= 10
+        && data.createdBy is string && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validate an evaluation document shape under a teacher
+    function isValidEvaluation(data) {
+      return data.keys().hasAll(['year', 'period', 'rating', 'level', 'coefficient', 'multiplier', 'creditEarned', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().size() <= 20
+        && data.year is int && data.year >= 1500 && data.year <= 2100
+        && data.period is string && data.period.size() > 0 && data.period.size() <= 100
+        && data.rating is string && data.rating.size() > 0 && data.rating.size() <= 30
+        && data.level is string && data.level.size() > 0 && data.level.size() <= 50
+        && (data.coefficient is number || data.coefficient is int)
+        && (data.multiplier is number || data.multiplier is int)
+        && (data.creditEarned is number || data.creditEarned is int)
+        && (!data.keys().hasAny(['akPendidikan']) || (data.akPendidikan is number || data.akPendidikan is int))
+        && data.createdBy is string && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validate Kop Settings document shape
+    function isValidKopSettings(data) {
+      return data.keys().hasAll(['logoType', 'customLogoUrl', 'row1', 'row2', 'row3'])
+        && data.keys().size() <= 12
+        && data.logoType is string && (data.logoType == 'svg-jabar' || data.logoType == 'url')
+        && data.customLogoUrl is string && data.customLogoUrl.size() <= 2000
+        && data.row1 is string && data.row1.size() <= 1000
+        && data.row2 is string && data.row2.size() <= 1000
+        && data.row3 is string && data.row3.size() <= 1000;
+    }
+
+    // --- COLLECTION RULES MATCHES ---
+
+    // Teachers collection
+    match /teachers/{teacherId} {
+      allow get: if isEmailVerified() && isValidId(teacherId);
+      allow list: if isEmailVerified();
+      
+      allow create: if isEmailVerified() 
+        && isValidId(teacherId) 
+        && isValidTeacher(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+        
+      allow update: if isEmailVerified()
+        && isValidId(teacherId)
+        && isValidTeacher(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().createdBy == existing().createdBy
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isEmailVerified() && isValidId(teacherId);
+
+      // Evaluations subcollection (nested)
+      match /evaluations/{evaluationId} {
+        allow get: if isEmailVerified() && isValidId(teacherId) && isValidId(evaluationId);
+        allow list: if isEmailVerified(); // Forced by parent route check and client query
+        
+        allow create: if isEmailVerified()
+          && isValidId(teacherId)
+          && isValidId(evaluationId)
+          && isValidEvaluation(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+          
+        allow update: if isEmailVerified()
+          && isValidId(teacherId)
+          && isValidId(evaluationId)
+          && isValidEvaluation(incoming())
+          && incoming().createdAt == existing().createdAt
+          && incoming().createdBy == existing().createdBy
+          && incoming().updatedAt == request.time;
+          
+        allow delete: if isEmailVerified() && isValidId(teacherId) && isValidId(evaluationId);
+      }
+    }
+
+    // Settings collection
+    match /settings/{settingsId} {
+      allow get: if isEmailVerified() && isValidId(settingsId);
+      
+      allow create, update: if isEmailVerified() 
+        && isValidId(settingsId)
+        && settingsId == "kop_" + request.auth.uid
+        && isValidKopSettings(incoming());
+        
+      allow delete: if isEmailVerified() 
+        && isValidId(settingsId) 
+        && settingsId == "kop_" + request.auth.uid;
+    }
+  }
+}

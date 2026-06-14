@@ -1,0 +1,6 @@
+{
+  "name": "Kalkulator PAK Guru Jabar",
+  "description": "Kalkulator Angka Kredit & Cetak Penetapan Angka Kredit (PAK) resmi guru dengan ukuran F4/Folio sesuai regulasi BKN terbaru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
