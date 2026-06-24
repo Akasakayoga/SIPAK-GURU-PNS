@@ -29,7 +29,7 @@ Aplikasi ini dibangun menggunakan *stack* teknologi modern untuk memastikan perf
 
 * **Frontend**: Next.js / React (Node.js)
 * **Backend / API**: Go (Gin Framework) *atau* Laravel (PHP)
-* **Database**: MySQL / PostgreSQL
+* **Database**: MySQL / PostgreSQL / Firebase
 * **Automation (Opsional)**: Browser automation untuk sinkronisasi portal kepegawaian.
 
 ---
