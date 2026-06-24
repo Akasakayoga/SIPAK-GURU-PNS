@@ -1,20 +1,51 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+  <img width="1200" height="400" alt="SIPAK GURU KCD XIII Banner" src="https://images.unsplash.com/photo-1510519138101-570d1dca3d66?auto=format&fit=crop&w=1200&q=80" style="object-fit: cover; border-radius: 8px;" />
+
+  # 🎓 SIPAK GURU KCD XIII
+  ### Sistem Informasi Penilaian Angka Kredit Guru – Cabang Dinas Pendidikan Wilayah XIII
+
+  pns • p3k • guru • sma • smk • slb
+  
+  ---
 </div>
 
-# Run and deploy your AI Studio app
+## 📌 Tentang Aplikasi
 
-This contains everything you need to run your app locally.
+**SIPAK GURU KCD XIII** adalah platform digital yang dirancang untuk mempermudah pengelolaan, perhitungan, dan sinkronisasi data **Angka Kredit (PAK)** bagi guru ASN (PNS & PPPK) di lingkungan Cabang Dinas Pendidikan Wilayah XIII (Ciamis, Banjar, Pangandaran). 
 
-View your app in AI Studio: https://ai.studio/apps/b7b7903f-c136-4405-99fd-92bfbf68538c
+Sistem ini membantu memvalidasi proses konversi angka kredit, sinkronisasi data dengan SIASN BKD, serta mempermudah administrasi kepegawaian sekolah (SMAN, SMKN, dan SLBN) agar lebih efektif, transparan, dan terstruktur.
 
-## Run Locally
+### ✨ Fitur Utama
+* **Dashboard Statistik & Analisis**: Memantau progres pengajuan angka kredit guru secara *real-time*.
+* **Kalkulator & Integrasi PAK**: Perhitungan otomatis untuk PAK Integrasi dan Konversi sesuai regulasi terbaru.
+* **Manajemen Data Pegawai**: Sinkronisasi data guru, pengawas, dan tenaga kependidikan antar wilayah kerja.
+* **Arsip Digital**: Penyimpanan dokumen SKP dan nota persetujuan yang rapi dan terorganisir.
 
-**Prerequisites:**  Node.js
+---
 
+## 🛠️ Teknologi yang Digunakan
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Aplikasi ini dibangun menggunakan *stack* teknologi modern untuk memastikan performa yang optimal:
+
+* **Frontend**: Next.js / React (Node.js)
+* **Backend / API**: Go (Gin Framework) *atau* Laravel (PHP)
+* **Database**: MySQL / PostgreSQL
+* **Automation (Opsional)**: Browser automation untuk sinkronisasi portal kepegawaian.
+
+---
+
+## 🚀 Memulai (Panduan Menjalankan Lokal)
+
+Ikuti langkah-langkah berikut untuk menjalankan aplikasi ini di lingkungan lokal Anda.
+
+### 📋 Prasyarat
+Pastikan Anda sudah menginstal perangkat lunak berikut:
+* [Node.js](https://nodejs.org/) (Versi LTS direkomendasikan)
+* Paket manajemen database sesuai konfigurasi Anda.
+
+### 🔧 Langkah Instalasi
+
+1. **Clone Repositori**
+   ```bash
+   git clone [https://github.com/username-anda/sipak-guru-kcd13.git](https://github.com/username-anda/sipak-guru-kcd13.git)
+   cd sipak-guru-kcd13
