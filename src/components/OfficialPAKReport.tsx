@@ -1,7 +1,137 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { TeacherProfile, SKPEvaluation, KopSettings } from '../types';
+import { SpecimenSVG } from './SpecimenSVG';
 import { GOLONGAN_LIST, getTeacherLevel, GOLONGAN_BASE_VALS, getMinimalPangkat, getMinimalJenjang } from '../data/golonganData';
 import { Printer, Edit3, Check, Calendar, AlertCircle, FileText, Landmark, User, Mail, Globe, Settings, GraduationCap, Download, Loader2 } from 'lucide-react';
+import { toast, swal } from '../lib/toast';
+
+// Helper functions for converting OKLCH to standard RGB colors in CSS to prevent pdf-capture engines from crashing
+function oklchToRgb(l: number, c: number, h: number, a: number = 1): string {
+  // 1. Convert OKLCH to OKLAB
+  const hRad = (h * Math.PI) / 180;
+  const a_lab = c * Math.cos(hRad);
+  const b_lab = c * Math.sin(hRad);
+  
+  // 2. Convert OKLAB to LMS
+  const l_lms = l + 0.3963377774 * a_lab + 0.2158037573 * b_lab;
+  const m_lms = l - 0.1055613458 * a_lab - 0.0638541728 * b_lab;
+  const s_lms = l - 0.0894841775 * a_lab - 1.2914855480 * b_lab;
+  
+  // 3. Nonlinear to linear LMS
+  const l_lms3 = l_lms * l_lms * l_lms;
+  const m_lms3 = m_lms * m_lms * m_lms;
+  const s_lms3 = s_lms * s_lms * s_lms;
+  
+  // 4. Convert LMS to linear sRGB
+  const r_lin = +4.0767416621 * l_lms3 - 3.3077115913 * m_lms3 + 0.2309699292 * s_lms3;
+  const g_lin = -1.2684380046 * l_lms3 + 2.6097574011 * m_lms3 - 0.3413193965 * s_lms3;
+  const b_lin = -0.0041960863 * l_lms3 - 0.7034186147 * m_lms3 + 1.7076147010 * s_lms3;
+  
+  // 5. Convert linear sRGB to standard sRGB
+  const toSRGB = (c_lin: number) => {
+    if (c_lin <= 0.0031308) {
+      return Math.max(0, 12.92 * c_lin);
+    }
+    return Math.pow(Math.max(0, c_lin), 1 / 2.4) * 1.055 - 0.055;
+  };
+  
+  const r = Math.min(255, Math.max(0, Math.round(toSRGB(r_lin) * 255)));
+  const g = Math.min(255, Math.max(0, Math.round(toSRGB(g_lin) * 255)));
+  const b = Math.min(255, Math.max(0, Math.round(toSRGB(b_lin) * 255)));
+  
+  if (a < 1) {
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function replaceOklchInString(cssText: string): string {
+  if (!cssText || !cssText.includes('oklch')) return cssText;
+  
+  return cssText.replace(/oklch\s*\(([^)]+)\)/gi, (match, innerText) => {
+    try {
+      let parts = innerText.trim().split(/[\s,]+/);
+      parts = parts.filter((p: string) => p !== '/');
+      
+      if (parts.length < 3) return '#808080';
+      
+      const lVal = parts[0];
+      const cVal = parts[1];
+      const hVal = parts[2];
+      const aVal = parts[3] || '1';
+      
+      let l = lVal.endsWith('%') ? parseFloat(lVal) / 100 : parseFloat(lVal);
+      let c = cVal.endsWith('%') ? (parseFloat(cVal) / 100) * 0.4 : parseFloat(cVal);
+      let h = 0;
+      if (hVal.toLowerCase().endsWith('deg')) {
+        h = parseFloat(hVal);
+      } else if (hVal.toLowerCase().endsWith('rad')) {
+        h = (parseFloat(hVal) * 180) / Math.PI;
+      } else if (hVal.toLowerCase().endsWith('turn')) {
+        h = parseFloat(hVal) * 360;
+      } else if (hVal.endsWith('%')) {
+        h = (parseFloat(hVal) / 100) * 360;
+      } else {
+        h = parseFloat(hVal);
+      }
+      
+      let a = aVal.endsWith('%') ? parseFloat(aVal) / 100 : parseFloat(aVal);
+      
+      if (isNaN(l)) l = 0.5;
+      if (isNaN(c)) c = 0.1;
+      if (isNaN(h)) h = 0;
+      if (isNaN(a)) a = 1;
+      
+      l = Math.min(1, Math.max(0, l));
+      c = Math.min(1, Math.max(0, c));
+      a = Math.min(1, Math.max(0, a));
+      
+      return oklchToRgb(l, c, h, a);
+    } catch (e) {
+      return '#808080';
+    }
+  });
+}
+
+const compressLogoImage = (base64Str: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 500;
+      const MAX_HEIGHT = 500;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/png'));
+      } else {
+        resolve(base64Str);
+      }
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
 
 interface OfficialPAKReportProps {
   profile: TeacherProfile;
@@ -94,93 +224,124 @@ export default function OfficialPAKReport({
 
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
-    const restores: Array<{ rule: CSSStyleRule; prop: string; originalVal: string }> = [];
-    let tempDiv: HTMLDivElement | null = null;
+    let iframe: HTMLIFrameElement | null = null;
     
     try {
       const html2pdf = await loadHtml2Pdf();
       
-      // Temporarily add a class to body to prevent any overflow issues during capture
-      document.body.classList.add('capturing-pdf');
-      
       const element = document.getElementById('pak-print-pages');
       if (!element) {
-        alert("Elemen laporan tidak ditemukan.");
+        toast.error("Elemen laporan tidak ditemukan.");
+        setIsDownloading(false);
         return;
       }
 
-      // Create a temporary element to let the browser convert oklch colors to rgb automatically
-      tempDiv = document.createElement('div');
-      tempDiv.style.display = 'none';
-      document.body.appendChild(tempDiv);
+      toast.info("Sedang mempersiapkan rendering dokumen PAK resmi format F4/Folio...");
 
-      const convertColor = (val: string): string => {
-        if (!val || typeof val !== 'string' || !val.includes('oklch')) {
-          return val;
-        }
-        if (tempDiv) {
-          tempDiv.style.color = '';
-          tempDiv.style.color = val;
-          const computed = getComputedStyle(tempDiv).color;
-          if (computed && !computed.includes('oklch')) {
-            return computed;
-          }
-        }
-        return '#808080'; // secure fallback value
-      };
+      // Create a hidden, off-screen iframe that has standard page dimensions to trigger a high-fidelity paint
+      iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '-9999px';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '215mm'; // exact standard F4 printed paper width 
+      iframe.style.height = '330mm'; // exact F4 printed paper height
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
 
-      // Iterate through active stylesheets to translate oklch rules on the fly
-      for (let i = 0; i < document.styleSheets.length; i++) {
-        const sheet = document.styleSheets[i];
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        throw new Error("Gagal menginisialisasi iframe rendering PDF.");
+      }
+
+      // Gather and sanitize all style resources from parent document to strip and convert oklch
+      let styleMarkup = '';
+      
+      // 1. Gather Stylesheet Tag Contents
+      const styleTags = document.querySelectorAll('style');
+      styleTags.forEach(tag => {
         try {
-          const rules = sheet.cssRules || sheet.rules;
-          if (!rules) continue;
-          for (let j = 0; j < rules.length; j++) {
-            const rule = rules[j];
-            if (rule instanceof CSSStyleRule && rule.style) {
-              const style = rule.style;
-              
-              // 1. Sanitize index-based styles
-              for (let k = 0; k < style.length; k++) {
-                const prop = style[k];
-                const val = style.getPropertyValue(prop);
-                if (val && val.includes('oklch')) {
-                  const newVal = convertColor(val);
-                  if (newVal !== val) {
-                    restores.push({ rule, prop, originalVal: val });
-                    style.setProperty(prop, newVal);
-                  }
-                }
-              }
-              
-              // 2. Sanitize custom properties / CSS variables that may not be enumerated by standard index
-              const cssText = rule.cssText;
-              if (cssText && cssText.includes('oklch')) {
-                const varMatches = cssText.match(/(--[a-zA-Z0-9_-]+)\s*:\s*([^;]+)/g);
-                if (varMatches) {
-                  varMatches.forEach(m => {
-                    const colonIdx = m.indexOf(':');
-                    if (colonIdx > 0) {
-                      const propName = m.substring(0, colonIdx).trim();
-                      const propVal = m.substring(colonIdx + 1).trim();
-                      if (propVal.includes('oklch')) {
-                        const newVal = convertColor(propVal);
-                        if (newVal !== propVal) {
-                          restores.push({ rule, prop: propName, originalVal: propVal });
-                          rule.style.setProperty(propName, newVal);
-                        }
-                      }
-                    }
-                  });
-                }
-              }
+          const sanitized = replaceOklchInString(tag.innerHTML);
+          styleMarkup += `<style id="${tag.id || ''}">${sanitized}</style>\n`;
+        } catch (e) {}
+      });
+      
+      // 2. Fetch and Sanitize Local Linked Stylesheets
+      const linkTags = document.querySelectorAll('link[rel="stylesheet"]');
+      for (let i = 0; i < linkTags.length; i++) {
+        const link = linkTags[i] as HTMLLinkElement;
+        try {
+          const href = link.href;
+          if (href.startsWith(window.location.origin) || href.startsWith('/') || !href.includes('://')) {
+            const response = await fetch(href);
+            if (response.ok) {
+              const cssText = await response.text();
+              const sanitized = replaceOklchInString(cssText);
+              styleMarkup += `<style data-from-link="${href}">${sanitized}</style>\n`;
+            } else {
+              styleMarkup += link.outerHTML;
             }
+          } else {
+            styleMarkup += link.outerHTML;
           }
         } catch (e) {
-          // Safely skip cross-origin style rule errors
+          styleMarkup += link.outerHTML;
         }
       }
-      
+
+      // Sanitize the element's direct content strings and inline styles for any remaining oklch terms
+      const sanitizedHtml = replaceOklchInString(element.innerHTML);
+
+      // Write complete clean document markup into the iframe
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Laporan PAK Resmi</title>
+            ${styleMarkup}
+            <style>
+              /* Custom print-specific isolated CSS overrides to ensure page break precision */
+              body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background-color: white !important;
+                color: black !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              #pak-print-pages {
+                width: 215mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .page-break {
+                page-break-after: always !important;
+                break-after: always !important;
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="pak-print-pages">
+              ${sanitizedHtml}
+            </div>
+          </body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      // Ensure that styles, nested elements, and the Jabar emblem complete their initial layout paint (800ms)
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const iframeElement = iframeDoc.getElementById('pak-print-pages');
+      if (!iframeElement) {
+        throw new Error("Gagal merender elemen laporan di dalam isolated container.");
+      }
+
       const opt = {
         margin:       [0, 0, 0, 0],
         filename:     `PAK_${profile.name.replace(/\s+/g, '_')}_NIP_${profile.nip}.pdf`,
@@ -190,31 +351,32 @@ export default function OfficialPAKReport({
           useCORS: true, 
           letterRendering: true,
           scrollY: 0,
-          scrollX: 0
+          scrollX: 0,
+          logging: false
         },
-        jsPDF:        { unit: 'mm', format: [215, 330], orientation: 'portrait' }, // F4 dimensions
+        jsPDF:        { unit: 'mm', format: [215, 330], orientation: 'portrait' }, // F4 format
         pagebreak:    { mode: ['css', 'legacy'] }
       };
       
-      await html2pdf().set(opt).from(element).save();
+      await html2pdf().set(opt).from(iframeElement).save();
+      swal.fire({
+        title: "Dokumen PDF Berhasil Didownload!",
+        text: `Berkas PAK resmi F4/Folio milik Guru PNS "${profile.name}" berhasil di-render dengan rasio skala tajam 2x dan diunduh secara lokal.`,
+        icon: "success",
+        confirmButtonText: "Selesai"
+      });
     } catch (error) {
       console.error("Gagal mengunduh PDF:", error);
-      alert("Gagal mengunduh PDF: " + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      // Pristinely restore all original oklch color configurations
-      restores.forEach(({ rule, prop, originalVal }) => {
-        try {
-          rule.style.setProperty(prop, originalVal);
-        } catch (err) {
-          // silent ignore
-        }
+      swal.fire({
+        title: "Gagal Mengunduh PDF!",
+        text: "Terjadi gangguan rendering grafis: " + (error instanceof Error ? error.message : String(error)),
+        icon: "error"
       });
-      
-      if (tempDiv && tempDiv.parentNode) {
-        tempDiv.parentNode.removeChild(tempDiv);
+    } finally {
+      // Safely tear down iframe from DOM tree
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
       }
-      
-      document.body.classList.remove('capturing-pdf');
       setIsDownloading(false);
     }
   };
@@ -346,13 +508,15 @@ export default function OfficialPAKReport({
     return Math.abs(accumJumlah - minimalJenjang);
   }, [accumJumlah, minimalJenjang]);
 
-  const isLolosPangkat = kekuranganPangkat <= 0;
-  
   const isJenjangChange = useMemo(() => {
     const curLevel = getTeacherLevel(profile.currentGolongan);
     const tgtLevel = getTeacherLevel(profile.targetGolongan);
     return curLevel !== tgtLevel;
   }, [profile.currentGolongan, profile.targetGolongan]);
+
+  const isLolosPangkat = isJenjangChange 
+    ? (kekuranganPangkat <= 0 && kekuranganJenjang <= 0) 
+    : (kekuranganPangkat <= 0);
 
   const recommendationText = useMemo(() => {
     const tgtLevel = getTeacherLevel(profile.targetGolongan);
@@ -532,47 +696,47 @@ export default function OfficialPAKReport({
           <tr className="border-b border-black">
             <td className="py-1 px-2 w-[5%] text-center border-r border-black font-semibold">1</td>
             <td className="py-1 px-2 w-[35%] border-r border-black font-semibold">NAMA</td>
-            <td className="py-1 px-2">: {profile.name || "___________________________"}</td>
+            <td className="py-1 px-2 text-[11px]"> {profile.name || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">2</td>
             <td className="py-1 px-2 border-r border-black font-semibold">NIP</td>
-            <td className="py-1 px-2 font-mono text-[10.5px]">: {profile.nip || "___________________________"}</td>
+            <td className="py-1 px-2 font-mono text-[10.5px]"> {profile.nip || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">3</td>
             <td className="py-1 px-2 border-r border-black font-semibold">NOMOR SERI KARPEG</td>
-            <td className="py-1 px-2 font-mono text-[10.5px]">: {profile.karpegNumber || "-"}</td>
+            <td className="py-1 px-2 font-mono text-[10.5px]"> {profile.karpegNumber || "-"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">4</td>
             <td className="py-1 px-2 border-r border-black font-semibold">TEMPAT/TGL. LAHIR</td>
-            <td className="py-1 px-2">: {profile.birthPlaceDate || "___________________________"}</td>
+            <td className="py-1 px-2 text-[11px]"> {profile.birthPlaceDate || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">5</td>
             <td className="py-1 px-2 border-r border-black font-semibold">JENIS KELAMIN</td>
-            <td className="py-1 px-2">: {profile.gender || "Laki-Laki"}</td>
+            <td className="py-1 px-2 text-[11px]"> {profile.gender || "Laki-Laki"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">6</td>
             <td className="py-1 px-2 border-r border-black font-semibold">PANGKAT/GOLONGAN RUANG TMT</td>
-            <td className="py-1 px-2">: {currentDetail.pangkat} / {profile.currentGolongan} / {profile.tmtCurrentPangkat || "01-04-2024"}</td>
+            <td className="py-1 px-2 text-[11px]"> {currentDetail.pangkat} / {profile.currentGolongan} / {profile.tmtCurrentPangkat || "01-04-2024"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">7</td>
             <td className="py-1 px-2 border-r border-black font-semibold">JABATAN/TMT</td>
-            <td className="py-1 px-2">: JABATAN GURU {getTeacherLevel(profile.currentGolongan).toUpperCase()} / {profile.tmtCurrentJabatan || "24-08-2023"}</td>
+            <td className="py-1 px-2 text-[11px]"> GURU {getTeacherLevel(profile.currentGolongan).toUpperCase()} / {profile.tmtCurrentJabatan || "24-08-2023"}</td>
           </tr>
           <tr className="border-b border-black">
             <td className="py-1 px-2 text-center border-r border-black font-semibold">8</td>
             <td className="py-1 px-2 border-r border-black font-semibold">UNIT KERJA</td>
-            <td className="py-1 px-2">: {profile.unitKerja || profile.school || "___________________________"}</td>
+            <td className="py-1 px-2 text-[11px]"> {profile.unitKerja || profile.school || "___________________________"}</td>
           </tr>
           <tr>
             <td className="py-1 px-2 text-center border-r border-black font-semibold">9</td>
             <td className="py-1 px-2 border-r border-black font-semibold">INSTANSI</td>
-            <td className="py-1 px-2">: {profile.instansiBiro || "PEMERINTAH PROVINSI JAWA BARAT"}</td>
+            <td className="py-1 px-2 text-[11px]"> {profile.instansiBiro || "PEMERINTAH PROVINSI JAWA BARAT"}</td>
           </tr>
         </tbody>
       </table>
@@ -580,61 +744,90 @@ export default function OfficialPAKReport({
   );
 
   // Reusable Signatures Block (Jabar Style with ESD QR box)
-  const renderSignatureBlock = () => (
-    <div className="pt-6 grid grid-cols-2 gap-4 text-[10.5px] text-black font-serif my-4 select-none leading-normal">
-      <div>
-        <p className="font-semibold italic">ASLI Penetapan Angka Kredit untuk:</p>
-        <p className="font-bold underline uppercase">{profile.name}</p>
-        
-        <div className="mt-4">
-          <p className="font-semibold">Tembusan disampaikan kepada:</p>
-          <ol className="list-decimal pl-4 space-y-0.5 text-[9.5px]">
-            <li>Yth. Pimpinan Instansi Pembina Jabatan Fungsional yang bersangkutan;</li>
-            <li>Yth. Kepala Badan Kepegawaian Negara/Kepala Kantor Regional III BKN;</li>
-            <li>Yth. Sekretaris Daerah Provinsi Jawa Barat;</li>
-            <li>Yth. Kepala Dinas Pendidikan;</li>
-            <li>Yth. Sekretaris Tim Penilai Kinerja PNS Pemerintah Provinsi Jawa Barat.</li>
-          </ol>
-        </div>
-      </div>
+  const renderSignatureBlock = () => {
+    // Read from shared kopSettings, fallback to profile for backward compatibility, then default
+    const tteLogoType = kopSettings.tteLogoType || profile.tteLogoType || 'default';
+    const tteLogoUrl = kopSettings.tteLogoUrl || profile.tteLogoUrl || '';
+    const tteLogoBase64 = kopSettings.tteLogoBase64 || profile.tteLogoBase64 || '';
+    const tteTextHeader = kopSettings.tteTextHeader || profile.tteTextHeader || 'Ditandatangani secara elektronik oleh :';
 
-      <div className="pl-6 border-l border-dashed border-slate-300">
-        <p>Ditetapkan di : {profile.tempatDitetapkan || "Bandung"}</p>
-        <p>Pada tanggal : {profile.tanggalPenetapan || "02 April 2026"}</p>
-        <div className="mt-2 text-[10px]">
-          <p className="font-bold uppercase">Pejabat Penilai Kinerja</p>
-          <p className="font-bold uppercase text-[9px] text-slate-800">{profile.pejabatPenilaiTitle || "KEPALA CABANG PENDIDIKAN WILAYAH XIII"}</p>
-          <p className="font-bold uppercase text-[9px] text-slate-800">{profile.pejabatPenilaiInstansi || "PROVINSI JAWA BARAT"}</p>
-        </div>
+    const titlePrefix = profile.pejabatPenilaiStatus === 'plt' ? 'Plt. ' : profile.pejabatPenilaiStatus === 'plh' ? 'Plh. ' : '';
 
-        {/* ESD Signature Box lookalike */}
-        <div className="my-3 border border-slate-300 rounded p-1.5 flex items-center gap-3 bg-slate-50/50 w-full max-w-[280px]">
-          <div className="w-10 h-10 shrink-0 bg-white border border-teal-500 rounded p-0.5">
-            {/* Dynamic CSS Electronic seal lookalike */}
-            <svg viewBox="0 0 50 50" className="w-full h-full text-teal-600">
-              <path d="M25 2 C12 2 2 12 2 25 C2 38 12 48 25 48 C38 48 48 38 48 25" stroke="currentColor" strokeWidth="2" fill="none" />
-              <path d="M25 8 L25 42 M8 25 L42 25" stroke="currentColor" strokeWidth="1" strokeDasharray="2" />
-              <circle cx="25" cy="25" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
-              <rect x="22" y="22" width="6" height="6" fill="currentColor" />
-            </svg>
-          </div>
-          <div className="text-[8.5px] leading-tight font-sans">
-            <p className="text-slate-505 italic text-[7.5px]">Ditandatangani secara elektronik oleh :</p>
-            <p className="font-bold text-teal-900 uppercase">KEPALA CABANG PENDIDIKAN</p>
-            <p className="font-bold text-slate-800 text-[8px] uppercase">{profile.pejabatPenilaiInstansi || "WILAYAH XIII PROVINSI JAWA BARAT"}</p>
+    // Automatically fall back to Pejabat Penilai titles to avoid manual repetitive input
+    const tteTextJabatan1 = kopSettings.tteTextJabatan1 || profile.tteTextJabatan1 || (titlePrefix + (profile.pejabatPenilaiTitle || 'KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII'));
+    const tteTextJabatan2 = kopSettings.tteTextJabatan2 || profile.tteTextJabatan2 || profile.pejabatPenilaiInstansi || 'PROVINSI JAWA BARAT';
+
+    return (
+      <div className="pt-6 grid grid-cols-2 gap-4 text-[10.5px] text-black font-serif my-4 select-none leading-normal">
+        <div>
+          <p className="font-semibold italic">ASLI Penetapan Angka Kredit untuk:</p>
+          <p className="font-bold underline uppercase text-slate-900">{profile.name}</p>
+          
+          <div className="mt-4">
+            <p className="font-semibold">Tembusan disampaikan kepada:</p>
+            <ol className="list-decimal pl-4 space-y-0.5 text-[9.5px]">
+              <li>Yth. Pimpinan Instansi Pembina Jabatan Fungsional yang bersangkutan;</li>
+              <li>Yth. Kepala Badan Kepegawaian Negara/Kepala Kantor Regional III BKN;</li>
+              <li>Yth. Sekretaris Daerah Provinsi Jawa Barat;</li>
+              <li>Yth. Kepala Dinas Pendidikan;</li>
+              <li>Yth. Sekretaris Tim Penilai Kinerja PNS Pemerintah Provinsi Jawa Barat.</li>
+            </ol>
           </div>
         </div>
 
-        <div className="text-[10px]">
-          <p className="font-bold underline uppercase">{profile.pejabatPenilaiNama || "DWI YANTI ESTRININGRUM, S.Sos., M.Pd."}</p>
-          <p className="font-medium text-slate-700">{profile.pejabatPenilaiGolongan || "Pembina Tk.I"}</p>
-          {profile.pejabatPenilaiNip && (
-            <p className="font-mono text-[9px] text-slate-500">NIP. {profile.pejabatPenilaiNip}</p>
-          )}
+        <div className="pl-6 border-l border-dashed border-slate-300 flex flex-col justify-start">
+          <p className="text-black text-[11px] font-serif font-semibold">Ditetapkan di {profile.tempatDitetapkan || "Bandung"}</p>
+          <p className="text-black text-[11px] font-serif font-semibold">Pada tanggal {profile.tanggalPenetapan || "02 April 2026"}</p>
+          
+          <div className="mt-4 text-[11px] font-serif leading-normal">
+            <p className="font-bold">Pejabat Penilai Kinerja</p>
+            <p className="font-bold uppercase text-[10px]">{titlePrefix}{profile.pejabatPenilaiTitle || "KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII"}</p>
+            <p className="font-bold uppercase text-[10px]">{profile.pejabatPenilaiInstansi || "PROVINSI JAWA BARAT"}</p>
+          </div>
+
+          {/* DISPUSIPDA / BSrE Electronic Signature Specimen Box (Sama Persis dengan Lampiran) */}
+          <div className="mt-3.5 border-[1.5px] border-black rounded-[20px] p-4 flex items-center gap-4 bg-white w-full max-w-[350px]">
+            {/* Left Column: TTD Electronic Logo (Enlarged) */}
+            <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+              {tteLogoType === 'upload' && tteLogoBase64 ? (
+                <img 
+                  src={tteLogoBase64} 
+                  alt="TTE Logo" 
+                  className="w-18 h-18 object-contain"
+                  style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
+                />
+              ) : tteLogoType === 'url' && tteLogoUrl ? (
+                <img 
+                  src={tteLogoUrl} 
+                  alt="TTE Logo" 
+                  className="w-18 h-18 object-contain"
+                  referrerPolicy="no-referrer"
+                  style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
+                />
+              ) : (
+                <SpecimenSVG className="w-18 h-18 shrink-0 select-none" />
+              )}
+            </div>
+
+            {/* Right Column: Dynamic Specimen Text */}
+            <div className="text-[10px] leading-snug font-sans text-black select-none">
+              <p className="text-slate-800 italic text-[10px] mb-0.5">{tteTextHeader}</p>
+              <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan1}</p>
+              <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan2}</p>
+              
+              <div className="mt-4 font-sans text-[10px]">
+                <p className="font-bold text-black uppercase">{profile.pejabatPenilaiNama || "DWI YANTI ESTRININGRUM, S.Sos., M.Pd."}</p>
+                <p className="text-slate-800">
+                  {profile.pejabatPenilaiGolongan || "Pembina Tk.I"}
+                  {!(profile.pejabatPenilaiGolongan || "Pembina Tk.I").endsWith('.') ? '.' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div id="official-pak-tab" className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -811,14 +1004,29 @@ export default function OfficialPAKReport({
               <Mail className="w-3.5 h-3.5" /> 3. Data Pejabat Penilai Kinerja
             </h4>
 
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-0.5">JABATAN PEJABAT PENILAI</label>
-              <input
-                type="text"
-                value={profile.pejabatPenilaiTitle || ''}
-                onChange={e => handleMetaChange('pejabatPenilaiTitle', e.target.value)}
-                className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
-              />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">STATUS JABATAN PENILAI</label>
+                <select
+                  value={profile.pejabatPenilaiStatus || 'definitif'}
+                  onChange={e => handleMetaChange('pejabatPenilaiStatus', e.target.value)}
+                  className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-bold text-slate-700"
+                >
+                  <option value="definitif">DEFINITIF (Biasa)</option>
+                  <option value="plt">PLT (Pelaksana Tugas)</option>
+                  <option value="plh">PLH (Pelaksana Harian)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">JABATAN PEJABAT PENILAI</label>
+                <input
+                  type="text"
+                  value={profile.pejabatPenilaiTitle || ''}
+                  onChange={e => handleMetaChange('pejabatPenilaiTitle', e.target.value)}
+                  className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                />
+              </div>
             </div>
 
             <div>
@@ -974,6 +1182,148 @@ export default function OfficialPAKReport({
               </div>
             </div>
 
+            {/* TTE Signature Specimen Customizer */}
+            <div className="pt-4 border-t border-slate-200 mt-4 space-y-3">
+              <span className="flex items-center gap-1.5 text-xs font-black text-slate-700 uppercase tracking-wide">
+                <Edit3 className="w-3.5 h-3.5 text-teal-600" /> Pengaturan Spesimen TTE (Global)
+              </span>
+              <p className="text-[9px] text-slate-500 italic leading-snug">
+                *Pengaturan TTE ini disimpan secara otomatis dan berlaku global untuk seluruh berkas PNS di bawah pengawasan Admin.
+              </p>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">TIPE LOGO SPESIMEN</label>
+                <div className="grid grid-cols-3 gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'default' })}
+                    className={`py-1 px-1 rounded font-bold border transition-all text-center cursor-pointer ${
+                      (kopSettings.tteLogoType || 'default') === 'default'
+                        ? 'bg-teal-50 border-teal-500 text-teal-800'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Bawaan (Digital)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'url' })}
+                    className={`py-1 px-1 rounded font-bold border transition-all text-center cursor-pointer ${
+                      kopSettings.tteLogoType === 'url'
+                        ? 'bg-teal-50 border-teal-500 text-teal-800'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    URL Gambar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'upload' })}
+                    className={`py-1 px-1 rounded font-bold border transition-all text-center cursor-pointer ${
+                      kopSettings.tteLogoType === 'upload'
+                        ? 'bg-teal-50 border-teal-500 text-teal-800'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Unggah File
+                  </button>
+                </div>
+              </div>
+
+              {kopSettings.tteLogoType === 'url' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">IMAGE URL LOGO TTE</label>
+                  <input
+                    type="text"
+                    value={kopSettings.tteLogoUrl || ''}
+                    onChange={e => setKopSettings({ ...kopSettings, tteLogoUrl: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                    placeholder="https://example.com/logo-tte.png"
+                  />
+                </div>
+              )}
+
+              {kopSettings.tteLogoType === 'upload' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">UNGGAH FILE GAMBAR LOGO (TTD ELEKTRONIK)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = async () => {
+                            if (typeof reader.result === 'string') {
+                              try {
+                                const compressedObj = await compressLogoImage(reader.result);
+                                setKopSettings({ ...kopSettings, tteLogoBase64: compressedObj });
+                              } catch (err) {
+                                console.error("Error compressing image:", err);
+                                setKopSettings({ ...kopSettings, tteLogoBase64: reader.result });
+                              }
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs w-full text-slate-500 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                    />
+                  </div>
+                  {kopSettings.tteLogoBase64 && (
+                    <div className="mt-1.5 flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200 rounded">
+                      <img src={kopSettings.tteLogoBase64} className="w-8 h-8 object-contain rounded border bg-white" />
+                      <span className="text-[9px] text-slate-500 truncate max-w-[200px]">Berhasil dimuat offline!</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2 select-none">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">TEKS HEADER SPESIMEN</label>
+                  <input
+                    type="text"
+                    value={kopSettings.tteTextHeader || ''}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextHeader: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                    placeholder="Ditandatangani secara elektronik oleh :"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[10px] font-bold text-slate-500">TEKS JABATAN BARIS 1</label>
+                    <span className="text-[8px] text-slate-500 font-bold uppercase italic">Mendukung Otomatis</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={kopSettings.tteTextJabatan1 || ''}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan1: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-bold uppercase"
+                    placeholder={profile.pejabatPenilaiTitle || "KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII"}
+                  />
+                  <p className="text-[8px] text-slate-400 mt-0.5">Kosongkan untuk otomatis menyalin dari nama jabatan Pejabat Penilai Kinerja.</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[10px] font-bold text-slate-500">TEKS JABATAN BARIS 2</label>
+                    <span className="text-[8px] text-slate-500 font-bold uppercase italic">Mendukung Otomatis</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={kopSettings.tteTextJabatan2 || ''}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan2: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-bold uppercase"
+                    placeholder={profile.pejabatPenilaiInstansi || "PROVINSI JAWA BARAT"}
+                  />
+                  <p className="text-[8px] text-slate-400 mt-0.5">Kosongkan untuk otomatis menyalin dari instansi/unit-kerja Pejabat Penilai.</p>
+                </div>
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -987,25 +1337,11 @@ export default function OfficialPAKReport({
           </button>
 
           <button
-            onClick={handleDownloadPDF}
-            disabled={isDownloading}
-            className={`flex justify-center items-center gap-1.5 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-lg shadow-sm transition-all cursor-pointer border ${
-              isDownloading 
-                ? "bg-slate-400 border-slate-300 cursor-not-allowed" 
-                : "bg-teal-600 border-teal-500 hover:bg-teal-700 hover:shadow"
-            }`}
+            disabled={true}
+            className="flex justify-center items-center gap-1.5 text-slate-500 font-bold text-xs sm:text-sm px-4 py-3 rounded-lg shadow-sm transition-all border bg-slate-100 border-slate-200 cursor-not-allowed"
           >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Memproses PDF...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Unduh Berkas PDF
-              </>
-            )}
+            <Download className="w-4 h-4 text-slate-400" />
+            Unduh Berkas PDF (Masih Dalam Pengembangan / Belum Berfungsi)
           </button>
         </div>
 
@@ -1044,7 +1380,7 @@ export default function OfficialPAKReport({
         <div className="bg-slate-800 text-white p-4 rounded-xl border border-slate-700 flex justify-between items-center print:hidden">
           <div>
             <span className="text-[10px] tracking-widest font-bold uppercase text-teal-400 block mb-0.5">Live Interactive Report preview</span>
-            <h4 className="text-sm font-extrabold">Portofolio Cetakan Dinas Pendidikan Provinsi Jawa Barat</h4>
+            <h4 className="text-sm font-extrabold">Portofolio Cetakan Dinas Pendidikan Wilayah XIII Provinsi Jawa Barat</h4>
           </div>
           <div className="flex gap-2">
             <span className="bg-slate-700 text-[10px] px-2.5 py-1 rounded-full font-bold">3 Halaman Terhubung</span>
@@ -1255,49 +1591,49 @@ export default function OfficialPAKReport({
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono">
+                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center">1</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] text-slate-800">AK DASAR YANG DIBERIKAN</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK DASAR YANG DIBERIKAN</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-2"></td>
                 </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono">
+                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center">2</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] text-slate-800">AK JF LAMA</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK JF LAMA</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-2"></td>
                 </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono">
+                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center">3</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] text-slate-800">AK PENYESUAIAN / PENYETARAAN</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK PENYESUAIAN / PENYETARAAN</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-2"></td>
                 </tr>
-                <tr className="border-b border-black h-8 font-mono">
+                <tr className="border-b border-black h-8 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center text-slate-500">4</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] font-bold text-slate-800">AK KONVERSI</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3">{konversiLama.toFixed(3).replace('.', ',')}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold">{konversiBaru.toFixed(3).replace('.', ',')}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-bold">{konversiJumlah.toFixed(3).replace('.', ',')}</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] font-bold text-slate-800">AK KONVERSI</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 text-[11px]">{konversiLama.toFixed(3).replace('.', ',')}</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{konversiBaru.toFixed(3).replace('.', ',')}</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-bold text-[11px]">{konversiJumlah.toFixed(3).replace('.', ',')}</td>
                   <td className="py-1 px-2"></td>
                 </tr>
-                <tr className="border-b border-black h-8 font-mono">
+                <tr className="border-b border-black h-8 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center text-slate-500">5</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] text-slate-800">AK YANG DIPEROLEH DARI PENINGKATAN PENDIDIKAN</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3">{pendidikanLama > 0 ? pendidikanLama.toFixed(3).replace('.', ',') : "-"}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold">{pendidikanBaru > 0 ? pendidikanBaru.toFixed(3).replace('.', ',') : "-"}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold">{pendidikanJumlah > 0 ? pendidikanJumlah.toFixed(3).replace('.', ',') : "-"}</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK YANG DIPEROLEH DARI PENINGKATAN PENDIDIKAN</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 text-[11px]">{pendidikanLama > 0 ? pendidikanLama.toFixed(3).replace('.', ',') : "-"}</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{pendidikanBaru > 0 ? pendidikanBaru.toFixed(3).replace('.', ',') : "-"}</td>
+                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{pendidikanJumlah > 0 ? pendidikanJumlah.toFixed(3).replace('.', ',') : "-"}</td>
                   <td className="py-1 px-2"></td>
                 </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono">
+                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
                   <td className="py-1 px-2 border-r border-black text-center">6</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[9px] text-slate-800">AK YANG DIPEROLEH DARI KENAIKAN PANGKAT LUAR BIASA</td>
+                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK YANG DIPEROLEH DARI KENAIKAN PANGKAT LUAR BIASA</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
                   <td className="py-1 px-1 border-r border-black text-center">-</td>
@@ -1382,11 +1718,7 @@ export default function OfficialPAKReport({
           </div>
 
           {/* Under-table note box */}
-          <div className="bg-slate-50 p-2.5 rounded border border-black text-[9.5px] text-black italic leading-snug my-3">
-            <strong>Catatan Kelayakan:</strong> {isLolosPangkat 
-              ? `YBS telah melampaui limit minimal akumulasi angka pangkat sehingga dapat diusulkan kenaikan golongan setingkat lebih tinggi menjadi ${targetDetail.pangkatTarget || "Penata Tingkat I (" + profile.targetGolongan + ")"}.`
-              : `YBS belum dapat diusulkan kenaikan pangkat setingkat lebih tinggi ke ${targetDetail.pangkatTarget || "Penata Tingkat I (" + profile.targetGolongan + ")"} karena akumulasi konversi SKP saat ini masih memiliki kekurangan sebesar ${kekuranganPangkat.toFixed(3)} AK.`}
-          </div>
+          
 
           {renderSignatureBlock()}
           

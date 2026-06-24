@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { KopSettings } from "../types";
 import { Settings, RefreshCw, Check, AlertCircle, FileText, Sparkles, Image, ShieldAlert } from "lucide-react";
 
@@ -75,25 +75,77 @@ const PRESETS = [
   }
 ];
 
+const compressLogoImage = (base64Str: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 500;
+      const MAX_HEIGHT = 500;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/png'));
+      } else {
+        resolve(base64Str);
+      }
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
+
 export default function KopAdminTab({ kopSettings, setKopSettings }: KopAdminTabProps) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'kop' | 'tte'>('kop');
+
   const handleReset = () => {
-    if (window.confirm("Apakah Anda yakin ingin mengembalikan KOP ke setelan default Provinsi Jawa Barat?")) {
-      setKopSettings({
-        logoType: 'svg-jabar',
-        customLogoUrl: '',
-        row1: 'PEMERINTAH DAERAH PROVINSI JAWA BARAT',
-        row2: 'DINAS PENDIDIKAN',
-        row3: 'Jalan. Dr. Radjiman No. 6 Telp (022) 4264813 Fax. (022) 4264881',
-        row4: 'Website : disdik.jabarprov.go.id',
-        row5: 'e-mail: disdik@jabar.prov.go.id / sekretariatdisdikjabar@gmail.com',
-        row6: 'BANDUNG - 40171'
-      });
-    }
+    setShowResetConfirm(true);
+  };
+
+  const executeReset = () => {
+    setKopSettings({
+      ...kopSettings,
+      logoType: 'svg-jabar',
+      customLogoUrl: '',
+      row1: 'PEMERINTAH DAERAH PROVINSI JAWA BARAT',
+      row2: 'DINAS PENDIDIKAN',
+      row3: 'Jalan. Dr. Radjiman No. 6 Telp (022) 4264813 Fax. (022) 4264881',
+      row4: 'Website : disdik.jabarprov.go.id',
+      row5: 'e-mail: disdik@jabar.prov.go.id / sekretariatdisdikjabar@gmail.com',
+      row6: 'BANDUNG - 40171'
+    });
+    setShowResetConfirm(false);
   };
 
   const handleApplyPreset = (presetSettings: typeof PRESETS[0]["settings"]) => {
-    setKopSettings(presetSettings);
+    setKopSettings({
+      ...kopSettings,
+      ...presetSettings
+    });
   };
+
+  const isTteAutoSync = !kopSettings.tteTextJabatan1 && !kopSettings.tteTextJabatan2;
 
   return (
     <div className="space-y-6">
@@ -108,15 +160,43 @@ export default function KopAdminTab({ kopSettings, setKopSettings }: KopAdminTab
             <ShieldAlert className="w-3.5 h-3.5" /> Ruang Administrasi Sistem
           </div>
           <h2 className="text-xl md:text-2xl font-black tracking-tight font-sans">
-            Fasilitas Menu Admin: Pengaturan KOP Dokumen
+            Fasilitas Menu Admin: Pengaturan KOP & TTE
           </h2>
           <p className="text-xs text-slate-300 leading-normal font-sans">
-            Gunakan panel ini untuk merubah format Kop Surat dan Logo Instansi yang tertera secara resmi pada Kop Blangko PAK 3 Halaman. Segala perubahan akan langsung tersimpan secara lokal dan diterapkan secara instan saat dokumen dipreview maupun dicetak ke PDF/Printer.
+            Gunakan panel ini untuk merubah format Kop Surat, Logo Instansi, serta spesimen segel elektronik (TTE) yang tertera secara resmi pada Blangko PAK.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      {/* Modern Horizontal Navigation Tabs (Sesuai Permintaan: Dipisah) */}
+      <div className="flex border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('kop')}
+          className={`flex items-center gap-2 py-3 px-6 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'kop'
+              ? 'border-teal-600 text-teal-700 font-black'
+              : 'border-transparent text-slate-450 hover:text-slate-705 hover:border-slate-300'
+          }`}
+        >
+          <Settings className="w-4 h-4 text-teal-600" /> 1. ATUR KOP & LOGO SURAT
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('tte')}
+          className={`flex items-center gap-2 py-3 px-6 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer relative ${
+            activeTab === 'tte'
+              ? 'border-rose-600 text-rose-700 font-black'
+              : 'border-transparent text-slate-450 hover:text-slate-705 hover:border-slate-300'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-rose-500 animate-pulse" /> 2. SET SPESIMEN TTE
+          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full">BARU</span>
+        </button>
+      </div>
+
+      {activeTab === 'kop' && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-fadeIn">
         
         {/* Left Column: live editor fields (7 cols) */}
         <div className="xl:col-span-12 space-y-6">
@@ -409,14 +489,282 @@ export default function KopAdminTab({ kopSettings, setKopSettings }: KopAdminTab
                   KOP Surat yang diisi di sini akan muncul langsung di lembar PDF "BLANGKO PAK RESMI" (Halaman 1, 2, dan 3) dan menyesuaikan otomatis desain format kedinasan resmi BKN Dinas Jabar.
                 </p>
               </div>
-
             </div>
 
           </div>
-
         </div>
-
       </div>
+      )}
+
+      {activeTab === 'tte' && (
+        /* DEDICATED SEPARATE TTE SPECIMEN TAB */
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 dark-shadow space-y-6 animate-fadeIn font-sans">
+          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-rose-500 animate-pulse" /> Menu Khusus: Parameter Pembubuhan Gambar Spesimen TTE (Global)
+            </span>
+            <span className="bg-rose-100 text-rose-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase select-none">
+              SINKRON OTOMATIS FIRESTORE
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-normal">
+            Formulir ini berfungsi khusus untuk mengunggah logo segel digital (Barcode/QR, Tanda Tangan Basah/TTE) yang dicetak di berkas PAK. Seluruh berkas PAK guru secara otomatis akan mengadaptasi spesimen ini secara dinamis.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left side: parameters (8 cols) */}
+            <div className="lg:col-span-8 space-y-5 text-slate-750 font-sans">
+              
+              {/* SINKRONISASI JABATAN & UNIT KERJA SECARA OTOMATIS */}
+              <div className="bg-teal-50 border border-teal-200 p-4 rounded-xl space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    id="auto-pejabat-sync"
+                    type="checkbox"
+                    checked={isTteAutoSync}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setKopSettings({
+                          ...kopSettings,
+                          tteTextJabatan1: '',
+                          tteTextJabatan2: ''
+                        });
+                      } else {
+                        setKopSettings({
+                          ...kopSettings,
+                          tteTextJabatan1: 'KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII',
+                          tteTextJabatan2: 'PROVINSI JAWA BARAT'
+                        });
+                      }
+                    }}
+                    className="w-4.5 h-4.5 text-teal-600 border-slate-300 rounded focus:ring-teal-500 cursor-pointer mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <label htmlFor="auto-pejabat-sync" className="block text-[11px] font-black text-teal-950 uppercase tracking-wider cursor-pointer">
+                      SINKRONISASI JABATAN & NAMA UNIT KERJA PEJABAT SECARA OTOMATIS (REKOMENDASI)
+                    </label>
+                    <p className="text-[10px] text-teal-800 leading-relaxed font-semibold">
+                      Harap centang ini agar data Jabatan dan Unit Kerja serta Nama pejabat penilai langsung disalin secara cerdas dari form "DATA PEJABAT PENILAI" masing-masing Guru. Anda tidak perlu mengetik ulang secara manual!
+                    </p>
+                    {isTteAutoSync && (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-[9px] font-bold mt-1 uppercase">
+                        ✓ Fitur Otomatis Aktif (Menyalin Nama Jabatan & Unit Kerja secara Real-time)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TIPE LOGO SPESIMEN TTE</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'default' })}
+                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                        (kopSettings.tteLogoType || 'default') === 'default'
+                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Bawaan (Digital)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'url' })}
+                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                        kopSettings.tteLogoType === 'url'
+                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      URL Gambar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'upload' })}
+                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                        kopSettings.tteLogoType === 'upload'
+                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Unggah File
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conditional inputs */}
+                {kopSettings.tteLogoType === 'url' && (
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">URL LOGO TTE KUSTOM</label>
+                    <input
+                      type="url"
+                      value={kopSettings.tteLogoUrl || ''}
+                      onChange={e => setKopSettings({ ...kopSettings, tteLogoUrl: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 focus:outline-teal-500 font-mono"
+                      placeholder="https://example.com/logo-tte.png"
+                    />
+                  </div>
+                )}
+
+                {kopSettings.tteLogoType === 'upload' && (
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">UNGGAH FILE GAMBAR LOGO</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = async () => {
+                            if (typeof reader.result === 'string') {
+                              try {
+                                const compressedObj = await compressLogoImage(reader.result);
+                                setKopSettings({ ...kopSettings, tteLogoBase64: compressedObj });
+                              } catch (err) {
+                                setKopSettings({ ...kopSettings, tteLogoBase64: reader.result });
+                              }
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer focus:outline-none"
+                    />
+                    {kopSettings.tteLogoBase64 && (
+                      <div className="flex items-center gap-1.5 p-1 bg-white border rounded mt-1">
+                        <span className="text-[9px] text-emerald-600 font-bold">✓ Sudah Terunggah Offline & Cloud!</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-755 font-sans">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS HEADER SPESIMEN</label>
+                  <input
+                    type="text"
+                    value={kopSettings.tteTextHeader || ''}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextHeader: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2.5 focus:outline-teal-500"
+                    placeholder="Contoh: Ditandatangani secara elektronik oleh :"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 1</label>
+                  <input
+                    type="text"
+                    disabled={isTteAutoSync}
+                    value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan1 || '')}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan1: e.target.value })}
+                    className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
+                      isTteAutoSync 
+                        ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
+                        : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
+                    }`}
+                    placeholder="Kosongkan untuk menyalin dari jabatan Pejabat Penilai"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 2</label>
+                  <input
+                    type="text"
+                    disabled={isTteAutoSync}
+                    value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan2 || '')}
+                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan2: e.target.value })}
+                    className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
+                      isTteAutoSync 
+                        ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
+                        : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
+                    }`}
+                    placeholder="Kosongkan untuk menyalin dari instansi / unit-kerja Pejabat Penilai"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Right side: live preview (4 cols) */}
+            <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 font-sans">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b pb-1.5 w-full text-center">
+                Preview TTE Spesimen Aktif
+              </span>
+
+              <div className="border border-slate-300 rounded-xl p-3 bg-white shadow-xs max-w-[280px] w-full flex flex-col items-center select-none text-center">
+                <span className="text-[8px] font-bold text-slate-400 block mb-2 uppercase tracking-wide">Lembar TTE PAK</span>
+                
+                <div className="border-[1.5px] border-black rounded-[15px] p-2.5 flex items-center gap-2 bg-white w-full">
+                  {/* Logo Frame */}
+                  <div className="w-16 h-16 flex-shrink-0 flex items-center justify-center border rounded-lg bg-slate-50 overflow-hidden">
+                    {kopSettings.tteLogoType === 'upload' && kopSettings.tteLogoBase64 ? (
+                      <img src={kopSettings.tteLogoBase64} className="max-w-full max-h-full object-contain" />
+                    ) : kopSettings.tteLogoType === 'url' && kopSettings.tteLogoUrl ? (
+                      <img src={kopSettings.tteLogoUrl} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="text-[8px] text-rose-500 font-black font-mono">TTE</div>
+                    )}
+                  </div>
+
+                  {/* Text Frame */}
+                  <div className="text-left text-[8px] leading-snug font-sans text-slate-800">
+                    <p className="italic text-slate-650 mb-0.5">{kopSettings.tteTextHeader || 'Ditandatangani secara elektronik oleh :'}</p>
+                    <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
+                      {isTteAutoSync ? 'JABATAN PEJABAT PENILAI' : (kopSettings.tteTextJabatan1 || 'KEPALA CABANG DINAS PENDIDIKAN')}
+                    </p>
+                    <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
+                      {isTteAutoSync ? 'UK / INSTANSI PENILAI' : (kopSettings.tteTextJabatan2 || 'PROVINSI JAWA BARAT')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-rose-50 text-rose-900 border border-rose-100 rounded-lg p-3 text-[10px] leading-relaxed">
+                <strong>Catatan Sinkronisasi Cloud:</strong> Seluruh berkas spesimen dan logo disimpan secara aman di cloud database Firestore dan didistribusikan ke lembar laporan. Proses upload logo hanya perlu dilakukan sekali saja tanpa kuatir hilang sewaktu melakukan logout!
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Reset Confirm Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fadeIn text-slate-100 font-sans">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center">
+            <div className="w-12 h-12 bg-amber-500/15 border border-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mx-auto animate-spin-reverse">
+              <RefreshCw className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-slate-100 uppercase tracking-tight">Kembalikan Default</h3>
+              <p className="text-xs text-slate-400">
+                Apakah Anda yakin ingin mengembalikan KOP ke setelan default Provinsi Jawa Barat? Seluruh baris teks kepala surat akan di-reset otomatis.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-755 text-slate-300 font-bold text-xs rounded-xl border border-slate-705 cursor-pointer transition-colors"
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                onClick={executeReset}
+                className="flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-450 text-slate-900 font-extrabold text-xs rounded-xl border border-amber-400 cursor-pointer transition-colors"
+              >
+                YA, ATUR ULANG
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

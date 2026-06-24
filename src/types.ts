@@ -34,6 +34,15 @@ export interface TeacherProfile {
   pejabatPenilaiNama?: string;
   pejabatPenilaiNip?: string;
   pejabatPenilaiGolongan?: string;
+  pejabatPenilaiStatus?: 'definitif' | 'plt' | 'plh';
+
+  // Custom Electronic Signature (TTE) Settings
+  tteLogoType?: 'default' | 'url' | 'upload';
+  tteLogoUrl?: string;
+  tteLogoBase64?: string;
+  tteTextHeader?: string;
+  tteTextJabatan1?: string;
+  tteTextJabatan2?: string;
 }
 
 export type SKPPeriod = 'Tahunan' | 'Triwulan I' | 'Triwulan II' | 'Triwulan III' | 'Triwulan IV' | 'September s.d Desember' | string;
@@ -76,5 +85,11 @@ export interface KopSettings {
   row4: string;
   row5: string;
   row6: string;
+  tteLogoType?: 'default' | 'url' | 'upload';
+  tteLogoUrl?: string;
+  tteLogoBase64?: string;
+  tteTextHeader?: string;
+  tteTextJabatan1?: string;
+  tteTextJabatan2?: string;
 }
 

@@ -56,7 +56,9 @@ export default function DashboardTab({
   // Clean, modern alignment with BKN incremental standards (replaces flawed absolute targets)
   const minimalPangkat = getMinimalPangkat(profile.currentGolongan);
   const minimalJenjang = getMinimalJenjang(profile.currentGolongan);
-  const targetAK = minimalPangkat;
+  
+  const isNaikJenjang = getTeacherLevel(profile.currentGolongan) !== getTeacherLevel(profile.targetGolongan);
+  const targetAK = isNaikJenjang ? minimalJenjang : minimalPangkat;
   
   // Perhitungan Kelebihan/Kekurangan AK
   const rawNeededAK = targetAK - currentTotalAK;
@@ -66,7 +68,9 @@ export default function DashboardTab({
   // Alignment with newest calculations on the blangko page
   const teacherLevel = getTeacherLevel(profile.currentGolongan);
 
-  const isLolosPangkat = currentTotalAK >= minimalPangkat;
+  const isLolosPangkat = isNaikJenjang 
+    ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang) 
+    : (currentTotalAK >= minimalPangkat);
   const isLolosJenjang = currentTotalAK >= minimalJenjang;
 
   const kekuranganPangkat = minimalPangkat > currentTotalAK ? (minimalPangkat - currentTotalAK) : 0;
@@ -487,6 +491,8 @@ export default function DashboardTab({
             <div className="bg-white border border-slate-200/60 rounded p-2.5 mt-2 text-xs text-slate-500">
               {isLolosPangkat ? (
                 <p>AK kumulatif Anda telah melampaui limit minimal kenaikan pangkat ke <strong>{targetGolonganDetail.pangkatTarget}</strong>. Anda dapat mengajukan usulan berkas dengan mengunduh Blangko PAK Resmi.</p>
+              ) : isNaikJenjang ? (
+                <p>Karena pengusulan ini melibatkan kenaikan jenjang jabatan (UKOM), Anda belum memenuhi syarat pangkat karena akumulasi Angka Kredit belum memenuhi syarat minimal jenjang jabatan sebesar <strong>{minimalJenjang.toFixed(3)} AK</strong> (Kekurangan: <strong>{kekuranganJenjang.toFixed(3)} AK</strong>). Anda harus naik jenjang terlebih dahulu sebelum dapat naik golongan ke <strong>{profile.targetGolongan}</strong>.</p>
               ) : (
                 <p>Anda masih memiliki kekurangan sebesar <strong>{kekuranganPangkat.toFixed(3)} AK</strong>. Silakan tambahkan prestasi evaluasi SKP berjalan di menu 'E-SKP Evaluasi Log' untuk mengumpulkannya.</p>
               )}

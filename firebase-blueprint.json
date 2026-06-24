@@ -73,12 +73,53 @@
         "row3": { "type": "string" },
         "row4": { "type": "string" },
         "row5": { "type": "string" },
-        "row6": { "type": "string" }
+        "row6": { "type": "string" },
+        "tteLogoType": { "type": "string", "enum": ["default", "url", "upload"] },
+        "tteLogoUrl": { "type": "string" },
+        "tteLogoBase64": { "type": "string" },
+        "tteTextHeader": { "type": "string" },
+        "tteTextJabatan1": { "type": "string" },
+        "tteTextJabatan2": { "type": "string" }
       },
       "required": ["logoType", "customLogoUrl", "row1", "row2", "row3"]
+    },
+    "appUser": {
+      "title": "App User",
+      "description": "Custom role-based school admin or super-admin account.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Lowercase unique username." },
+        "password": { "type": "string", "description": "Readable or hashed password." },
+        "school": { "type": "string", "description": "Associated school name, or 'ALL' for Super Admins." },
+        "role": { "type": "string", "enum": ["super_admin", "school_admin"] },
+        "displayName": { "type": "string", "description": "Display name of the school operator." }
+      },
+      "required": ["username", "password", "school", "role", "displayName"]
+    },
+    "school": {
+      "title": "School Data",
+      "description": "Master Data Sekolah (Unit Kerja) managed in the administrative area.",
+      "type": "object",
+      "properties": {
+        "npsn": { "type": "string", "description": "8-digit unique National School Identification Number." },
+        "name": { "type": "string", "description": "School complete name." },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "principalName": { "type": "string" },
+        "principalNip": { "type": "string" }
+      },
+      "required": ["npsn", "name"]
     }
   },
   "firestore": {
+    "app_users/{username}": {
+      "schema": "appUser",
+      "description": "Custom user accounts for schools and super admins to login without standard OAuth constraints."
+    },
+    "schools/{schoolId}": {
+      "schema": "school",
+      "description": "Master data list of registered schools."
+    },
     "teachers": {
       "schema": "teacher",
       "description": "Collection of all civil servant teachers managed by the office."
