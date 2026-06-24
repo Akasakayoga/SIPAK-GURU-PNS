@@ -19,7 +19,6 @@ Sistem ini membantu memvalidasi proses konversi angka kredit, sinkronisasi data 
 * **Dashboard Statistik & Analisis**: Memantau progres pengajuan angka kredit guru secara *real-time*.
 * **Kalkulator & Integrasi PAK**: Perhitungan otomatis untuk PAK Integrasi dan Konversi sesuai regulasi terbaru.
 * **Manajemen Data Pegawai**: Sinkronisasi data guru, pengawas, dan tenaga kependidikan antar wilayah kerja.
-* **Arsip Digital**: Penyimpanan dokumen SKP dan nota persetujuan yang rapi dan terorganisir.
 
 ---
 
