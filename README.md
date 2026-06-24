@@ -4,7 +4,7 @@
   # 🎓 SIPAK GURU KCD XIII
   ### Sistem Informasi Penilaian Angka Kredit Guru – Cabang Dinas Pendidikan Wilayah XIII
 
-  pns • p3k • guru • sma • smk • slb
+  untuk PNS (Pegawai Negeri Sipil)
   
   ---
 </div>
