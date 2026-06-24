@@ -22,7 +22,11 @@ import {
   School,
   Building,
   Upload,
-  Download
+  Download,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { 
   collection, 
@@ -137,6 +141,11 @@ export default function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [teacherEvalsCache, setTeacherEvalsCache] = useState<Record<string, number>>({});
   const [teacherPendCache, setTeacherPendCache] = useState<Record<string, number>>({});
+
+  // Layout View Mode & Pagination states (especially for admin/super_admin view toggling)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Selected teacher states
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
@@ -521,6 +530,11 @@ export default function App() {
     
     loadCache();
   }, [teachersIdsKey]);
+
+  // Reset pagination page when search or itemsPerPage limits are modified
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
 
   // Handle User login (Username / Password Verification with local fallback)
   const handleLogin = async (e: React.FormEvent) => {
@@ -1141,6 +1155,32 @@ export default function App() {
     t.school.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const hasPagination = !!user;
+  const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage);
+  const safeCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
+  const indexOfLastItem = safeCurrentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentTeachers = hasPagination 
+    ? filteredTeachers.slice(indexOfFirstItem, indexOfLastItem)
+    : filteredTeachers;
+  const activeViewMode = hasPagination ? viewMode : 'grid';
+
+  const maxPageVisible = 5;
+  const getPageNumbers = () => {
+    const pages = [];
+    let startPage = Math.max(1, safeCurrentPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxPageVisible - 1);
+    
+    if (endPage - startPage < maxPageVisible - 1) {
+      startPage = Math.max(1, endPage - maxPageVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
   // Render Custom confirmation modals
   const renderConfirmModals = () => {
     return (
@@ -1721,6 +1761,60 @@ export default function App() {
                 />
               </div>
 
+              {/* Control Bar for Admin / School Admin */}
+              {user && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">TAMPILAN:</span>
+                    <div className="inline-flex bg-slate-200/60 p-1 rounded-lg border border-slate-300/40">
+                      <button
+                        onClick={() => setViewMode("grid")}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          viewMode === "grid"
+                            ? "bg-white text-teal-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span>Grid / Kartu</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode("list")}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          viewMode === "list"
+                            ? "bg-white text-teal-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <List className="w-3.5 h-3.5" />
+                        <span>Tabel / List</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Items per Page Selector & Stats */}
+                  <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
+                    <div className="text-[11px] text-slate-500 font-medium">
+                      Total: <span className="font-bold text-slate-800">{filteredTeachers.length}</span> Guru
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">BARIS PER HALAMAN:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="text-xs bg-white border border-slate-300 rounded-lg py-1 px-2.5 focus:outline-teal-500 font-bold text-slate-700"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Teachers list container */}
               {loadingTeachers ? (
                 <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center space-y-3">
@@ -1752,110 +1846,257 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredTeachers.map(teacher => (
-                    <div 
-                      key={teacher.id} 
-                      className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 hover:border-teal-500 hover:shadow-md transition-all flex flex-col justify-between"
-                    >
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="inline-block bg-teal-50 text-teal-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-teal-100 font-mono">
-                            Golongan: {teacher.currentGolongan} ➔ {teacher.targetGolongan}
-                          </span>
-                          
-                          <button
-                            onClick={() => handleDeleteTeacher(teacher.id, teacher.name)}
-                            className="text-slate-300 hover:text-rose-600 transition-colors cursor-pointer"
-                            title="Hapus Guru"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                <>
+                  {activeViewMode === 'list' ? (
+                    /* Beautiful Table View */
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">
+                              <th className="py-3 px-4">Nama Lengkap & NIP</th>
+                              <th className="py-3 px-4">Sekolah Unit Kerja</th>
+                              <th className="py-3 px-4">Golongan</th>
+                              <th className="py-3 px-4">AK Kumulatif</th>
+                              <th className="py-3 px-4">Status Kelayakan</th>
+                              <th className="py-3 px-4 text-center">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {currentTeachers.map((teacher) => {
+                              const sumAK = teacherEvalsCache[teacher.id] || 0;
+                              const sumPend = teacherPendCache[teacher.id] || 0;
+                              const totalPendidikanAK = (teacher.akPendidikan || 0) + sumPend;
+                              const currentTotalAK = (teacher.akIntegrasi2022 || 0) + sumAK + totalPendidikanAK;
 
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-base leading-tight tracking-tight">{teacher.name}</h3>
-                          <p className="text-xs font-mono text-slate-500 mt-0.5">NIP: {teacher.nip}</p>
-                        </div>
+                              const minimalPangkat = getMinimalPangkat(teacher.currentGolongan);
+                              const minimalJenjang = getMinimalJenjang(teacher.currentGolongan);
 
-                        <div className="bg-slate-50 p-3 rounded-lg text-[11px] space-y-1 text-slate-600 font-sans border border-slate-100">
-                          <p><strong>Sekolah:</strong> {teacher.school || "Instansi belum diatur"}</p>
-                          <p><strong>Karpeg:</strong> {teacher.karpegNumber || "-"}</p>
-                          <div className="flex gap-4">
-                            <p><strong>Integrasi 2022:</strong> {(teacher.akIntegrasi2022 || 0).toFixed(3)} AK</p>
-                            {(teacher.akPendidikan || 0) > 0 && (
-                              <p><strong>AK Pendidikan:</strong> {(teacher.akPendidikan || 0).toFixed(3)} AK</p>
-                            )}
-                          </div>
-                        </div>
+                              const isCrossingJenjang = getTeacherLevel(teacher.currentGolongan) !== getTeacherLevel(teacher.targetGolongan);
+                              const targetAK = isCrossingJenjang ? minimalJenjang : minimalPangkat;
+                              
+                              const shortfall = targetAK - currentTotalAK;
+                              const isEligible = isCrossingJenjang 
+                                ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang)
+                                : (currentTotalAK >= minimalPangkat);
 
-                        {/* Monitoring Kelayakan Naik Pangkat / Naik Jenjang */}
-                        {(() => {
-                          const sumAK = teacherEvalsCache[teacher.id] || 0;
-                          const sumPend = teacherPendCache[teacher.id] || 0;
-                          const totalPendidikanAK = (teacher.akPendidikan || 0) + sumPend;
-                          const currentTotalAK = (teacher.akIntegrasi2022 || 0) + sumAK + totalPendidikanAK;
+                              return (
+                                <tr key={teacher.id} className="hover:bg-slate-50/70 transition-colors text-xs">
+                                  <td className="py-3 px-4">
+                                    <div className="font-bold text-slate-900 leading-tight">{teacher.name}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">NIP: {teacher.nip}</div>
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-600 font-medium max-w-xs truncate">
+                                    {teacher.school || "-"}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="inline-block bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 font-mono">
+                                      {teacher.currentGolongan} ➔ {teacher.targetGolongan}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                                    {currentTotalAK.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">/ {targetAK.toFixed(3)}</span>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    {isEligible ? (
+                                      <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-extrabold px-2 py-1 rounded-md border border-emerald-200 uppercase tracking-tight">
+                                        <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>LAYAK {isCrossingJenjang ? "JENJANG" : "PANGKAT"}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-extrabold px-2 py-1 rounded-md border border-amber-200 uppercase tracking-tight" title={`Kurang ${shortfall.toFixed(3)} AK`}>
+                                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        <span>Kurang {shortfall.toFixed(1)} AK</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button
+                                        onClick={() => handleSelectTeacher(teacher)}
+                                        className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-800 font-bold text-[10px] rounded-lg transition-colors cursor-pointer border border-teal-100"
+                                      >
+                                        Kelola ➔
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteTeacher(teacher.id, teacher.name)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer rounded-lg hover:bg-rose-50"
+                                        title="Hapus Guru"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Original Card Grid View */
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {currentTeachers.map(teacher => (
+                        <div 
+                          key={teacher.id} 
+                          className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 hover:border-teal-500 hover:shadow-md transition-all flex flex-col justify-between"
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="inline-block bg-teal-50 text-teal-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-teal-100 font-mono">
+                                Golongan: {teacher.currentGolongan} ➔ {teacher.targetGolongan}
+                              </span>
+                              
+                              <button
+                                onClick={() => handleDeleteTeacher(teacher.id, teacher.name)}
+                                className="text-slate-300 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Hapus Guru"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
 
-                          const minimalPangkat = getMinimalPangkat(teacher.currentGolongan);
-                          const minimalJenjang = getMinimalJenjang(teacher.currentGolongan);
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-base leading-tight tracking-tight">{teacher.name}</h3>
+                              <p className="text-xs font-mono text-slate-500 mt-0.5">NIP: {teacher.nip}</p>
+                            </div>
 
-                          const isCrossingJenjang = getTeacherLevel(teacher.currentGolongan) !== getTeacherLevel(teacher.targetGolongan);
-                          const targetAK = isCrossingJenjang ? minimalJenjang : minimalPangkat;
-                          
-                          const shortfall = targetAK - currentTotalAK;
-                          const isEligible = isCrossingJenjang 
-                            ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang)
-                            : (currentTotalAK >= minimalPangkat);
-
-                          return (
-                            <div className="pt-2.5 border-t border-slate-100 space-y-2">
-                              <div className="flex justify-between items-center text-[10px] font-bold">
-                                <span className="text-slate-450 text-slate-500 uppercase tracking-wider font-mono">STATUS KELAYAKAN</span>
-                                <span className="bg-slate-100 text-slate-800 text-[10px] font-mono px-2 py-0.5 rounded border border-slate-200">
-                                  {currentTotalAK.toFixed(3)} / {targetAK.toFixed(3)} AK
-                                </span>
+                            <div className="bg-slate-50 p-3 rounded-lg text-[11px] space-y-1 text-slate-600 font-sans border border-slate-100">
+                              <p><strong>Sekolah:</strong> {teacher.school || "Instansi belum diatur"}</p>
+                              <p><strong>Karpeg:</strong> {teacher.karpegNumber || "-"}</p>
+                              <div className="flex gap-4">
+                                <p><strong>Integrasi 2022:</strong> {(teacher.akIntegrasi2022 || 0).toFixed(3)} AK</p>
+                                {(teacher.akPendidikan || 0) > 0 && (
+                                  <p><strong>AK Pendidikan:</strong> {(teacher.akPendidikan || 0).toFixed(3)} AK</p>
+                                )}
                               </div>
+                            </div>
 
-                              {isEligible ? (
-                                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[10px] font-black px-2.5 py-1.5 rounded-lg border border-emerald-250 border-emerald-200 uppercase tracking-tight">
-                                  <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-pulse" />
-                                  <span>
-                                    {isCrossingJenjang 
-                                      ? "LAYAK NAIK JENJANG & PANGKAT" 
-                                      : "LAYAK NAIK PANGKAT"}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg border border-amber-200 uppercase tracking-tight">
-                                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                    <span className="truncate">
-                                      Belum Layak (Kurang {shortfall.toFixed(3)} AK)
+                            {/* Monitoring Kelayakan Naik Pangkat / Naik Jenjang */}
+                            {(() => {
+                              const sumAK = teacherEvalsCache[teacher.id] || 0;
+                              const sumPend = teacherPendCache[teacher.id] || 0;
+                              const totalPendidikanAK = (teacher.akPendidikan || 0) + sumPend;
+                              const currentTotalAK = (teacher.akIntegrasi2022 || 0) + sumAK + totalPendidikanAK;
+
+                              const minimalPangkat = getMinimalPangkat(teacher.currentGolongan);
+                              const minimalJenjang = getMinimalJenjang(teacher.currentGolongan);
+
+                              const isCrossingJenjang = getTeacherLevel(teacher.currentGolongan) !== getTeacherLevel(teacher.targetGolongan);
+                              const targetAK = isCrossingJenjang ? minimalJenjang : minimalPangkat;
+                              
+                              const shortfall = targetAK - currentTotalAK;
+                              const isEligible = isCrossingJenjang 
+                                ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang)
+                                : (currentTotalAK >= minimalPangkat);
+
+                              return (
+                                <div className="pt-2.5 border-t border-slate-100 space-y-2">
+                                  <div className="flex justify-between items-center text-[10px] font-bold">
+                                    <span className="text-slate-450 text-slate-500 uppercase tracking-wider font-mono">STATUS KELAYAKAN</span>
+                                    <span className="bg-slate-100 text-slate-800 text-[10px] font-mono px-2 py-0.5 rounded border border-slate-200">
+                                      {currentTotalAK.toFixed(3)} / {targetAK.toFixed(3)} AK
                                     </span>
                                   </div>
-                                  {/* Small dynamic progress bar */}
-                                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
-                                    <div 
-                                      className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                                      style={{ width: `${Math.min(100, Math.max(0, (currentTotalAK / targetAK) * 100))}%` }}
-                                    ></div>
-                                  </div>
+
+                                  {isEligible ? (
+                                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[10px] font-black px-2.5 py-1.5 rounded-lg border border-emerald-250 border-emerald-200 uppercase tracking-tight">
+                                      <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-pulse" />
+                                      <span>
+                                        {isCrossingJenjang 
+                                          ? "LAYAK NAIK JENJANG & PANGKAT" 
+                                          : "LAYAK NAIK PANGKAT"}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg border border-amber-200 uppercase tracking-tight">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        <span className="truncate">
+                                          Belum Layak (Kurang {shortfall.toFixed(3)} AK)
+                                        </span>
+                                      </div>
+                                      {/* Small dynamic progress bar */}
+                                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                                        <div 
+                                          className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                                          style={{ width: `${Math.min(100, Math.max(0, (currentTotalAK / targetAK) * 100))}%` }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })()}
+                              );
+                            })()}
+                          </div>
+
+                          <button
+                            onClick={() => handleSelectTeacher(teacher)}
+                            className="w-full mt-4 flex items-center justify-center gap-2 py-2 px-4 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer transition-colors"
+                          >
+                            Kelola Angka Kredit & Cetak PAK ➔
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {hasPagination && totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-xs mt-6">
+                      <div className="text-xs text-slate-500 font-medium">
+                        Menampilkan <span className="font-bold text-slate-800">{indexOfFirstItem + 1}</span> sampai{" "}
+                        <span className="font-bold text-slate-800">
+                          {Math.min(indexOfLastItem, filteredTeachers.length)}
+                        </span>{" "}
+                        dari <span className="font-bold text-slate-800">{filteredTeachers.length}</span> guru PNS
                       </div>
 
-                      <button
-                        onClick={() => handleSelectTeacher(teacher)}
-                        className="w-full mt-4 flex items-center justify-center gap-2 py-2 px-4 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer transition-colors"
-                      >
-                        Kelola Angka Kredit & Cetak PAK ➔
-                      </button>
+                      <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={safeCurrentPage === 1}
+                          className={`p-1.5 rounded-lg border text-slate-600 transition-colors cursor-pointer ${
+                            safeCurrentPage === 1
+                              ? "bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed"
+                              : "bg-white border-slate-300 hover:bg-slate-50"
+                          }`}
+                          title="Halaman Sebelumnya"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {getPageNumbers().map(pageNum => (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all cursor-pointer border ${
+                              safeCurrentPage === pageNum
+                                ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                                : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={safeCurrentPage === totalPages}
+                          className={`p-1.5 rounded-lg border text-slate-600 transition-colors cursor-pointer ${
+                            safeCurrentPage === totalPages
+                              ? "bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed"
+                              : "bg-white border-slate-300 hover:bg-slate-50"
+                          }`}
+                          title="Halaman Berikutnya"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}
