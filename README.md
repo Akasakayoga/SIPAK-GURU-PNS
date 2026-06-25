@@ -154,4 +154,4 @@ Jika Anda ingin menjalankan aplikasi ini di komputer lokal Anda:
 ---
 
 ## 🏛️ Penyelenggara & Dukungan
-Sistem ini dibuat untuk mendukung akselerasi transformasi digital aparatur sipil negara demi mewujudkan pelayanan pendidikan Jawa Barat yang **Juara Lahir Batin**. Jika Anda mengalami kendala operasional, silakan hubungi operator kepegawaian Cabang Dinas Pendidikan Wilayah XIII Provinsi Jawa Barat.
+Sistem ini dibuat untuk mendukung akselerasi transformasi digital aparatur sipil negara demi mewujudkan pelayanan pendidikan Jawa Barat yang **Istimewa** (menuju visi *Jawa Barat Istimewa 2026*). Jika Anda mengalami kendala operasional, silakan hubungi operator kepegawaian Cabang Dinas Pendidikan Wilayah XIII Provinsi Jawa Barat.
