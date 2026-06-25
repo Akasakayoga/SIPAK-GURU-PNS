@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -146,6 +146,12 @@ export default function App() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
+  // Filters and Sorting states for teacher database
+  const [filterSchool, setFilterSchool] = useState<string>("");
+  const [filterGolongan, setFilterGolongan] = useState<string>("");
+  const [filterEligibility, setFilterEligibility] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("name_asc");
 
   // Selected teacher states
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
@@ -435,7 +441,11 @@ export default function App() {
             pejabatPenilaiNama: data.pejabatPenilaiNama || "",
             pejabatPenilaiNip: data.pejabatPenilaiNip || "",
             pejabatPenilaiGolongan: data.pejabatPenilaiGolongan || "",
-            pejabatPenilaiStatus: data.pejabatPenilaiStatus || "definitif"
+            pejabatPenilaiStatus: data.pejabatPenilaiStatus || "definitif",
+            skPangkatFileLink: data.skPangkatFileLink || "",
+            pakIntegrasiFileLink: data.pakIntegrasiFileLink || "",
+            ijazahFileLink: data.ijazahFileLink || "",
+            additionalFileLink: data.additionalFileLink || ""
           });
         });
         setTeachers(list);
@@ -477,7 +487,9 @@ export default function App() {
             startDate: evalData.startDate || "",
             endDate: evalData.endDate || "",
             isCustomRange: evalData.isCustomRange || false,
-            customMonths: Number(evalData.customMonths) || 12
+            customMonths: Number(evalData.customMonths) || 12,
+            skpFileLink: evalData.skpFileLink || "",
+            evidenceFileLink: evalData.evidenceFileLink || ""
           });
         });
         // Sort newest first
@@ -531,10 +543,10 @@ export default function App() {
     loadCache();
   }, [teachersIdsKey]);
 
-  // Reset pagination page when search or itemsPerPage limits are modified
+  // Reset pagination page when search or itemsPerPage or filters are modified
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
+  }, [searchQuery, itemsPerPage, filterSchool, filterGolongan, filterEligibility, sortBy]);
 
   // Handle User login (Username / Password Verification with local fallback)
   const handleLogin = async (e: React.FormEvent) => {
@@ -1121,6 +1133,8 @@ export default function App() {
         endDate: newEval.endDate || "",
         isCustomRange: newEval.isCustomRange || false,
         customMonths: Number(newEval.customMonths) || 12,
+        skpFileLink: newEval.skpFileLink || "",
+        evidenceFileLink: newEval.evidenceFileLink || "",
         createdBy: user.username,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -1148,12 +1162,103 @@ export default function App() {
     }, 200);
   };
 
-  // Filter teachers based on user query
-  const filteredTeachers = teachers.filter(t => 
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    t.nip.includes(searchQuery) ||
-    t.school.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter & sort teachers based on search query, school filter, golongan filter, eligibility filter, and sorting choice
+  const filteredTeachers = useMemo(() => {
+    let list = teachers.filter(t => {
+      // 1. Text Search query
+      const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        t.nip.includes(searchQuery) ||
+        t.school.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      // 2. School Filter
+      if (filterSchool && t.school !== filterSchool) return false;
+
+      // 3. Golongan Filter
+      if (filterGolongan && t.currentGolongan !== filterGolongan) return false;
+
+      // 4. Eligibility Filter
+      if (filterEligibility) {
+        const sumAK = teacherEvalsCache[t.id] || 0;
+        const sumPend = teacherPendCache[t.id] || 0;
+        const totalPendidikanAK = (t.akPendidikan || 0) + sumPend;
+        const currentTotalAK = (t.akIntegrasi2022 || 0) + sumAK + totalPendidikanAK;
+
+        const minimalPangkat = getMinimalPangkat(t.currentGolongan);
+        const minimalJenjang = getMinimalJenjang(t.currentGolongan);
+
+        const isCrossingJenjang = getTeacherLevel(t.currentGolongan) !== getTeacherLevel(t.targetGolongan);
+        const isEligible = isCrossingJenjang 
+          ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang)
+          : (currentTotalAK >= minimalPangkat);
+
+        if (filterEligibility === "eligible" && !isEligible) return false;
+        if (filterEligibility === "not_eligible" && isEligible) return false;
+      }
+
+      return true;
+    });
+
+    // 5. Sorting choice
+    list.sort((a, b) => {
+      if (sortBy === "name_asc") {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortBy === "name_desc") {
+        return b.name.localeCompare(a.name);
+      }
+      if (sortBy === "nip") {
+        return a.nip.localeCompare(b.nip);
+      }
+      if (sortBy === "ak_desc" || sortBy === "ak_asc") {
+        const sumAK_A = teacherEvalsCache[a.id] || 0;
+        const sumPend_A = teacherPendCache[a.id] || 0;
+        const totalAK_A = (a.akIntegrasi2022 || 0) + sumAK_A + (a.akPendidikan || 0) + sumPend_A;
+
+        const sumAK_B = teacherEvalsCache[b.id] || 0;
+        const sumPend_B = teacherPendCache[b.id] || 0;
+        const totalAK_B = (b.akIntegrasi2022 || 0) + sumAK_B + (b.akPendidikan || 0) + sumPend_B;
+
+        return sortBy === "ak_desc" ? totalAK_B - totalAK_A : totalAK_A - totalAK_B;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [teachers, searchQuery, filterSchool, filterGolongan, filterEligibility, sortBy, teacherEvalsCache, teacherPendCache]);
+
+  const stats = useMemo(() => {
+    let total = teachers.length;
+    let eligible = 0;
+    let totalAK = 0;
+
+    teachers.forEach(t => {
+      const sumAK = teacherEvalsCache[t.id] || 0;
+      const sumPend = teacherPendCache[t.id] || 0;
+      const totalPendidikanAK = (t.akPendidikan || 0) + sumPend;
+      const currentTotalAK = (t.akIntegrasi2022 || 0) + sumAK + totalPendidikanAK;
+      totalAK += currentTotalAK;
+
+      const minimalPangkat = getMinimalPangkat(t.currentGolongan);
+      const minimalJenjang = getMinimalJenjang(t.currentGolongan);
+
+      const isCrossingJenjang = getTeacherLevel(t.currentGolongan) !== getTeacherLevel(t.targetGolongan);
+      const isEligible = isCrossingJenjang 
+        ? (currentTotalAK >= minimalPangkat && currentTotalAK >= minimalJenjang)
+        : (currentTotalAK >= minimalPangkat);
+
+      if (isEligible) {
+        eligible++;
+      }
+    });
+
+    return {
+      total,
+      eligible,
+      notEligible: total - eligible,
+      avgAK: total > 0 ? (totalAK / total) : 0
+    };
+  }, [teachers, teacherEvalsCache, teacherPendCache]);
 
   const hasPagination = !!user;
   const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage);
@@ -1749,16 +1854,178 @@ export default function App() {
                 </div>
               )}
 
-              {/* Search Box */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-2.5">
-                <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Cari guru berdasarkan Nama, nomor NIP Pegawai, atau Sekolah..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none placeholder-slate-400"
-                />
+              {/* Dynamic Stats Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fadeIn">
+                {/* Total Teachers */}
+                <div className="bg-gradient-to-br from-teal-50 to-teal-100/50 p-5 rounded-2xl border border-teal-100/70 shadow-xs flex items-center gap-4">
+                  <div className="p-3 bg-teal-600 rounded-xl text-white">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-teal-700 uppercase tracking-wider font-mono">Total PNS</span>
+                    <h3 className="text-xl font-black text-slate-950 mt-0.5">{stats.total} <span className="text-[11px] text-teal-600 font-bold">Guru</span></h3>
+                  </div>
+                </div>
+
+                {/* Eligible */}
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-5 rounded-2xl border border-emerald-100/70 shadow-xs flex items-center gap-4">
+                  <div className="p-3 bg-emerald-600 rounded-xl text-white">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider font-mono">Layak Naik Pangkat</span>
+                    <h3 className="text-xl font-black text-slate-950 mt-0.5">{stats.eligible} <span className="text-[11px] text-emerald-600 font-bold">Guru</span></h3>
+                  </div>
+                </div>
+
+                {/* Ineligible */}
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-5 rounded-2xl border border-amber-100/70 shadow-xs flex items-center gap-4">
+                  <div className="p-3 bg-amber-500 rounded-xl text-white">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider font-mono">Belum Layak</span>
+                    <h3 className="text-xl font-black text-slate-950 mt-0.5">{stats.notEligible} <span className="text-[11px] text-amber-600 font-bold">Guru</span></h3>
+                  </div>
+                </div>
+
+                {/* Avg AK */}
+                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 p-5 rounded-2xl border border-indigo-100/70 shadow-xs flex items-center gap-4">
+                  <div className="p-3 bg-indigo-600 rounded-xl text-white">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider font-mono">Rata-Rata AK</span>
+                    <h3 className="text-xl font-black text-slate-950 mt-0.5">{stats.avgAK.toFixed(2)} <span className="text-[11px] text-indigo-600 font-bold">AK</span></h3>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search Control Panel */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-teal-600" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight">Penyaringan & Sortir Pangkalan Data</span>
+                  </div>
+                  {(searchQuery || filterSchool || filterGolongan || filterEligibility || sortBy !== "name_asc") && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setFilterSchool("");
+                        setFilterGolongan("");
+                        setFilterEligibility("");
+                        setSortBy("name_asc");
+                      }}
+                      className="text-[10px] text-rose-600 hover:text-rose-700 font-black flex items-center gap-1 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 cursor-pointer transition-colors"
+                    >
+                      RESET SEMUA FILTER
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Search Query */}
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">Pencarian Kata Kunci</label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        placeholder="Cari guru berdasarkan Nama, NIP, atau Sekolah..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-teal-500 focus:bg-white text-slate-800 font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter Sekolah / Unit Kerja */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">Unit Kerja Sekolah</label>
+                    {user?.role === 'school_admin' ? (
+                      <input
+                        type="text"
+                        value={user.school || "Sekolah Anda"}
+                        disabled
+                        className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-500 font-bold"
+                      />
+                    ) : (
+                      <select
+                        value={filterSchool}
+                        onChange={e => setFilterSchool(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:outline-teal-500 focus:bg-white text-slate-700 font-bold"
+                      >
+                        <option value="">Semua Sekolah</option>
+                        {schoolsList.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Filter Golongan */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">Golongan Aktif</label>
+                    <select
+                      value={filterGolongan}
+                      onChange={e => setFilterGolongan(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:outline-teal-500 focus:bg-white text-slate-700 font-bold"
+                    >
+                      <option value="">Semua Golongan</option>
+                      {GOLONGAN_LIST.map(g => (
+                        <option key={g.id} value={g.id}>{g.id} - Himpunan {g.pangkatTarget}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter Status Kelayakan */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">Status Kelayakan Kenaikan</label>
+                    <select
+                      value={filterEligibility}
+                      onChange={e => setFilterEligibility(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:outline-teal-500 focus:bg-white text-slate-700 font-bold"
+                    >
+                      <option value="">Semua Kelayakan</option>
+                      <option value="eligible">Layak Naik Pangkat / Jenjang</option>
+                      <option value="not_eligible">Belum Layak (Kurang AK)</option>
+                    </select>
+                  </div>
+
+                  {/* Sort By Choice */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">Urutkan Berdasarkan</label>
+                    <select
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:outline-teal-500 focus:bg-white text-slate-700 font-bold"
+                    >
+                      <option value="name_asc">Nama (A-Z)</option>
+                      <option value="name_desc">Nama (Z-A)</option>
+                      <option value="nip">NIP Pegawai</option>
+                      <option value="ak_desc">Angka Kredit Terbanyak</option>
+                      <option value="ak_asc">Angka Kredit Tersedikit</option>
+                    </select>
+                  </div>
+
+                  {/* Export Filtered Buttons */}
+                  <div className="md:col-span-2 flex items-end">
+                    {(filterSchool || filterGolongan || filterEligibility || searchQuery) ? (
+                      <button
+                        onClick={handleExportTeachersToCSV}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-800 font-bold text-xs rounded-xl transition-all cursor-pointer border border-teal-150 border-teal-200 shadow-xs"
+                      >
+                        <Download className="w-4 h-4 text-teal-600" />
+                        <span>EKSPORT HASIL FILTER ({filteredTeachers.length} GURU)</span>
+                      </button>
+                    ) : (
+                      <div className="text-[11px] text-slate-400 font-medium pb-2">
+                        💡 Gunakan penyaringan di atas untuk mengisolasi data guru tertentu.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Control Bar for Admin / School Admin */}

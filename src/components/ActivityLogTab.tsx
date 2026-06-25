@@ -18,7 +18,10 @@ import {
   AlertCircle,
   Calendar,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Cloud,
+  Link,
+  ExternalLink
 } from 'lucide-react';
 
 interface ActivityLogTabProps {
@@ -44,6 +47,8 @@ export default function ActivityLogTab({
   const [level, setLevel] = useState<'Ahli Pertama' | 'Ahli Muda' | 'Ahli Madya' | 'Ahli Utama'>(currentGolonganLevel);
   const [notes, setNotes] = useState('');
   const [akPendidikanInput, setAkPendidikanInput] = useState<string>('');
+  const [skpFileLink, setSkpFileLink] = useState('');
+  const [evidenceFileLink, setEvidenceFileLink] = useState('');
 
   // Custom date range states
   const [isCustomRange, setIsCustomRange] = useState(false);
@@ -142,12 +147,16 @@ export default function ActivityLogTab({
       startDate: isCustomRange ? startDate : undefined,
       endDate: isCustomRange ? endDate : undefined,
       isCustomRange,
-      customMonths: isCustomRange ? customMonths : undefined
+      customMonths: isCustomRange ? customMonths : undefined,
+      skpFileLink: skpFileLink.trim() || undefined,
+      evidenceFileLink: evidenceFileLink.trim() || undefined
     };
 
     onAddEvaluation(newEvaluation);
     setNotes('');
     setAkPendidikanInput('');
+    setSkpFileLink('');
+    setEvidenceFileLink('');
   };
 
   const searchedEvaluations = useMemo(() => {
@@ -355,6 +364,35 @@ export default function ActivityLogTab({
             />
           </div>
 
+          {/* Cloud Storage Links */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Cloud className="w-3.5 h-3.5 text-teal-650" /> Tautan Berkas Cloud (Drive/Dropbox/dll)
+            </span>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 mb-0.5 uppercase tracking-wide">TAUTAN BERKAS PENILAIAN SKP (OPSIONAL)</label>
+                <input
+                  type="url"
+                  value={skpFileLink}
+                  onChange={e => setSkpFileLink(e.target.value)}
+                  className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                  placeholder="https://drive.google.com/file/d/..."
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 mb-0.5 uppercase tracking-wide">TAUTAN BUKTI FISIK / SERTIFIKAT / SK (OPSIONAL)</label>
+                <input
+                  type="url"
+                  value={evidenceFileLink}
+                  onChange={e => setEvidenceFileLink(e.target.value)}
+                  className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                  placeholder="https://drive.google.com/file/d/..."
+                />
+              </div>
+            </div>
+          </div>
+
           <button
             type="submit"
             id="add-evaluation-btn"
@@ -452,6 +490,36 @@ export default function ActivityLogTab({
                         <td className="py-3 px-3 font-sans text-slate-600">
                           <span className="block text-[11px] leading-tight font-medium text-slate-800">{item.level}</span>
                           {item.notes && <span className="block text-[10px] text-slate-400 select-all italic mt-0.5">{item.notes}</span>}
+                          
+                          {/* File Links display */}
+                          {(item.skpFileLink || item.evidenceFileLink) && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {item.skpFileLink && (
+                                <a
+                                  href={item.skpFileLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-250 rounded transition-all"
+                                  title="Buka Berkas SKP"
+                                >
+                                  <ExternalLink className="w-2.5 h-2.5 text-teal-600" />
+                                  <span>Berkas SKP</span>
+                                </a>
+                              )}
+                              {item.evidenceFileLink && (
+                                <a
+                                  href={item.evidenceFileLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition-all"
+                                  title="Buka Bukti Fisik / Sertifikat"
+                                >
+                                  <Link className="w-2.5 h-2.5 text-indigo-650" />
+                                  <span>Bukti Fisik</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-right font-bold text-slate-950">
                           +{item.creditEarned.toFixed(3)}

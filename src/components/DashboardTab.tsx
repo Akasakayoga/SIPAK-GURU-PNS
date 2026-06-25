@@ -27,7 +27,10 @@ import {
   CheckCircle,
   AlertTriangle,
   FileText,
-  Clock
+  Clock,
+  Cloud,
+  Link,
+  ExternalLink
 } from 'lucide-react';
 
 interface DashboardTabProps {
@@ -249,41 +252,199 @@ export default function DashboardTab({
                 max="10"
               />
             </div>
-            <div className="flex items-end">
+
+            {/* Cloud Link Storage Fields */}
+            <div className="md:col-span-3 border-t border-slate-200 pt-4 mt-2">
+              <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Cloud className="w-4 h-4 text-teal-650" />
+                Integrasi Tautan Berkas Fisik (Cloud Link Storage - Google Drive/Dropbox/dll)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN SK KENAIKAN PANGKAT TERAKHIR</label>
+                  <input
+                    type="url"
+                    value={editForm.skPangkatFileLink || ''}
+                    onChange={e => setEditForm({ ...editForm, skPangkatFileLink: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded px-2.5 py-2 focus:outline-teal-500 font-mono"
+                    placeholder="https://drive.google.com/file/d/..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN BERKAS PAK INTEGRASI 2022</label>
+                  <input
+                    type="url"
+                    value={editForm.pakIntegrasiFileLink || ''}
+                    onChange={e => setEditForm({ ...editForm, pakIntegrasiFileLink: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded px-2.5 py-2 focus:outline-teal-500 font-mono"
+                    placeholder="https://drive.google.com/file/d/..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN IJAZAH PENDIDIKAN TERAKHIR</label>
+                  <input
+                    type="url"
+                    value={editForm.ijazahFileLink || ''}
+                    onChange={e => setEditForm({ ...editForm, ijazahFileLink: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded px-2.5 py-2 focus:outline-teal-500 font-mono"
+                    placeholder="https://drive.google.com/file/d/..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN BERKAS PENDUKUNG LAINNYA</label>
+                  <input
+                    type="url"
+                    value={editForm.additionalFileLink || ''}
+                    onChange={e => setEditForm({ ...editForm, additionalFileLink: e.target.value })}
+                    className="w-full text-xs bg-white border border-slate-300 rounded px-2.5 py-2 focus:outline-teal-500 font-mono"
+                    placeholder="https://drive.google.com/file/d/..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-3 flex justify-end pt-2">
               <button
                 type="submit"
                 id="save-profile-btn"
-                className="w-full flex justify-center items-center gap-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm px-4 py-2 rounded shadow-xs cursor-pointer"
+                className="w-full md:w-auto flex justify-center items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-6 py-2.5 rounded shadow-xs cursor-pointer transition-all"
               >
                 Simpan Data Baru
               </button>
             </div>
           </form>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-2 pt-4 border-t border-slate-100 text-sm">
-            <div>
-              <span className="block text-xs text-slate-400 font-bold uppercase">Golongan saat ini</span>
-              <span className="font-semibold text-slate-900">{profile.currentGolongan} ({golonganDetail.pangkat})</span>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-2 pt-4 border-t border-slate-100 text-sm">
+              <div>
+                <span className="block text-xs text-slate-400 font-bold uppercase">Golongan saat ini</span>
+                <span className="font-semibold text-slate-900">{profile.currentGolongan} ({golonganDetail.pangkat})</span>
+              </div>
+              <div>
+                <span className="block text-xs text-slate-400 font-bold uppercase">Jenjang Jabatan</span>
+                <span className="font-semibold text-slate-900">{getTeacherLevel(profile.currentGolongan)}</span>
+              </div>
+              <div>
+                <span className="block text-xs text-teal-600 font-bold uppercase">AK PAK Integrasi 2022</span>
+                <span className="font-bold text-mono text-teal-800">{(profile.akIntegrasi2022 || 0).toFixed(3)}</span>
+              </div>
+              <div>
+                <span className="block text-xs text-indigo-650 font-bold uppercase">Total AK Pendidikan</span>
+                <span className="font-bold text-mono text-indigo-800">{totalPendidikanAK.toFixed(3)}</span>
+              </div>
+              <div>
+                <span className="block text-xs text-slate-400 font-bold uppercase">Predikat SKP Estimasi</span>
+                <span className={`font-semibold px-2 py-0.5 rounded text-xs inline-block border ${formatRatingBadge(profile.ratingSKP)}`}>
+                  {profile.ratingSKP} ({profile.ratingSKP === 'Sangat Baik' ? '150%' : profile.ratingSKP === 'Baik' ? '100%' : '75%'})
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="block text-xs text-slate-400 font-bold uppercase">Jenjang Jabatan</span>
-              <span className="font-semibold text-slate-900">{getTeacherLevel(profile.currentGolongan)}</span>
+
+            {/* Cloud Link Storage view section */}
+            <div className="mt-6 pt-5 border-t border-slate-100">
+              <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-3.5 flex items-center gap-1.5">
+                <Cloud className="w-4 h-4 text-teal-600" />
+                Berkas Fisik Kepegawaian Ditautkan (Cloud Storage Link)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* SK Pangkat */}
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3 shadow-2xs hover:bg-white transition-all">
+                  <div>
+                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">SK Kenaikan Pangkat</span>
+                    <p className="text-xs font-bold text-slate-800 truncate mt-1">
+                      {profile.skPangkatFileLink ? "Ada Tautan Terunggah" : "Belum ditautkan"}
+                    </p>
+                  </div>
+                  {profile.skPangkatFileLink ? (
+                    <a
+                      href={profile.skPangkatFileLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-black bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 border border-teal-200 rounded-lg transition-all shadow-3xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-teal-600" /> BUKA BERKAS
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg select-none">
+                      KOSONG
+                    </span>
+                  )}
+                </div>
+
+                {/* PAK Integrasi */}
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3 shadow-2xs hover:bg-white transition-all">
+                  <div>
+                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">PAK Integrasi 2022</span>
+                    <p className="text-xs font-bold text-slate-800 truncate mt-1">
+                      {profile.pakIntegrasiFileLink ? "Ada Tautan Terunggah" : "Belum ditautkan"}
+                    </p>
+                  </div>
+                  {profile.pakIntegrasiFileLink ? (
+                    <a
+                      href={profile.pakIntegrasiFileLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-black bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 border border-teal-200 rounded-lg transition-all shadow-3xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-teal-600" /> BUKA BERKAS
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg select-none">
+                      KOSONG
+                    </span>
+                  )}
+                </div>
+
+                {/* Ijazah Pendidikan */}
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3 shadow-2xs hover:bg-white transition-all">
+                  <div>
+                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Ijazah Terakhir</span>
+                    <p className="text-xs font-bold text-slate-800 truncate mt-1">
+                      {profile.ijazahFileLink ? "Ada Tautan Terunggah" : "Belum ditautkan"}
+                    </p>
+                  </div>
+                  {profile.ijazahFileLink ? (
+                    <a
+                      href={profile.ijazahFileLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-black bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 border border-teal-200 rounded-lg transition-all shadow-3xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-teal-600" /> BUKA BERKAS
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg select-none">
+                      KOSONG
+                    </span>
+                  )}
+                </div>
+
+                {/* Berkas Lainnya */}
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3 shadow-2xs hover:bg-white transition-all">
+                  <div>
+                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Berkas Pendukung Lain</span>
+                    <p className="text-xs font-bold text-slate-800 truncate mt-1">
+                      {profile.additionalFileLink ? "Ada Tautan Terunggah" : "Belum ditautkan"}
+                    </p>
+                  </div>
+                  {profile.additionalFileLink ? (
+                    <a
+                      href={profile.additionalFileLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-black bg-teal-50 hover:bg-teal-100 text-teal-700 hover:text-teal-850 border border-teal-200 rounded-lg transition-all shadow-3xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-teal-600" /> BUKA BERKAS
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg select-none">
+                      KOSONG
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <span className="block text-xs text-teal-600 font-bold uppercase">AK PAK Integrasi 2022</span>
-              <span className="font-bold text-mono text-teal-800">{(profile.akIntegrasi2022 || 0).toFixed(3)}</span>
-            </div>
-            <div>
-              <span className="block text-xs text-indigo-650 font-bold uppercase">Total AK Pendidikan</span>
-              <span className="font-bold text-mono text-indigo-800">{totalPendidikanAK.toFixed(3)}</span>
-            </div>
-            <div>
-              <span className="block text-xs text-slate-400 font-bold uppercase">Predikat SKP Estimasi</span>
-              <span className={`font-semibold px-2 py-0.5 rounded text-xs inline-block border ${formatRatingBadge(profile.ratingSKP)}`}>
-                {profile.ratingSKP} ({profile.ratingSKP === 'Sangat Baik' ? '150%' : profile.ratingSKP === 'Baik' ? '100%' : '75%'})
-              </span>
-            </div>
-          </div>
+          </>
         )}
       </div>
 

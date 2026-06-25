@@ -43,6 +43,12 @@ export interface TeacherProfile {
   tteTextHeader?: string;
   tteTextJabatan1?: string;
   tteTextJabatan2?: string;
+
+  // Integrasi Tautan Berkas Fisik (Cloud Link Storage)
+  skPangkatFileLink?: string;
+  pakIntegrasiFileLink?: string;
+  ijazahFileLink?: string;
+  additionalFileLink?: string;
 }
 
 export type SKPPeriod = 'Tahunan' | 'Triwulan I' | 'Triwulan II' | 'Triwulan III' | 'Triwulan IV' | 'September s.d Desember' | string;
@@ -63,6 +69,10 @@ export interface SKPEvaluation {
   endDate?: string;
   isCustomRange?: boolean;
   customMonths?: number;
+
+  // Integrasi Tautan Berkas Fisik (Cloud Link Storage)
+  skpFileLink?: string;
+  evidenceFileLink?: string;
 }
 
 export interface GolonganDetail {
