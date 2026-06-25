@@ -26,7 +26,9 @@ import {
   LayoutGrid,
   List,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Menu,
+  X
 } from "lucide-react";
 import { 
   collection, 
@@ -159,6 +161,7 @@ export default function App() {
   const [evaluations, setEvaluations] = useState<SKPEvaluation[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "activities" | "calculator" | "regulations" | "pak_report" | "kop_admin" | "user_management">("dashboard");
   const [adminView, setAdminView] = useState<"teachers" | "users" | "kop" | "calculator" | "regulations" | "schools">("teachers");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [schoolsList, setSchoolsList] = useState<{ id: string, name: string, npsn: string, principalName?: string, principalNip?: string, principalStatus?: 'definitif' | 'plt' | 'plh' }[]>([]);
 
   // Custom confirmation dialog states
@@ -1378,23 +1381,60 @@ export default function App() {
   // --- UNAUTHENTICATED LOGIN VIEW (Username & Password Portal) ---
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 font-sans flex flex-col justify-between text-slate-100 select-none">
-        
+      <div className="min-h-screen bg-slate-950 font-sans flex flex-col justify-between text-slate-100 select-none relative overflow-hidden">
+        <style>{`
+          @keyframes floatBlob1 {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(40px, -60px) scale(1.15); }
+            66% { transform: translate(-30px, 30px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          @keyframes floatBlob2 {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(-50px, 40px) scale(0.85); }
+            66% { transform: translate(40px, -30px) scale(1.1); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          @keyframes floatBlob3 {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(35px, 35px) scale(1.1); }
+            66% { transform: translate(-40px, -40px) scale(0.85); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob1 {
+            animation: floatBlob1 20s infinite alternate ease-in-out;
+          }
+          .animate-blob2 {
+            animation: floatBlob2 25s infinite alternate ease-in-out;
+          }
+          .animate-blob3 {
+            animation: floatBlob3 18s infinite alternate ease-in-out;
+          }
+        `}</style>
+
+        {/* Ambient Animated Abstract Background Blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] animate-blob1"></div>
+          <div className="absolute top-1/2 left-1/4 w-[450px] h-[450px] bg-teal-500/10 rounded-full blur-[120px] animate-blob2"></div>
+          <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-[110px] animate-blob3"></div>
+          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-amber-500/5 rounded-full blur-[90px] animate-blob1"></div>
+        </div>
+
         {/* Decorative Top header */}
-        <div className="bg-teal-950 border-b border-teal-900/60 py-3 text-center text-[10px] tracking-widest font-mono text-teal-300">
+        <div className="bg-slate-900/60 backdrop-blur-md border-b border-slate-800/40 py-3 text-center text-[10px] tracking-widest font-mono text-teal-400 z-10 relative">
           SISTEM KEAMANAN TERINTEGRASI • CABANG DINAS PENDIDIKAN WILAYAH XIII
         </div>
  
         {/* Login main frame */}
-        <div className="max-w-md w-full mx-auto px-4 py-12 flex-1 flex flex-col justify-center">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden space-y-6">
+        <div className="max-w-md w-full mx-auto px-4 py-12 flex-1 flex flex-col justify-center z-10 relative">
+          <div className="bg-slate-900/60 backdrop-blur-2xl border border-slate-800/80 rounded-2xl p-8 shadow-2xl relative overflow-hidden space-y-6">
             
             {/* Top decorative gradient bar */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-amber-500"></div>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500"></div>
  
             {/* Shield & Crest Header */}
-            <div className="flex flex-col items-center space-y-2">
-              <div className="w-16 h-20 flex items-center justify-center">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="w-16 h-20 flex items-center justify-center filter drop-shadow-[0_0_15px_rgba(16,185,129,0.2)]">
                 <img 
                   src="https://upload.wikimedia.org/wikipedia/commons/9/99/Coat_of_arms_of_West_Java.svg" 
                   alt="Logo Provinsi Jawa Barat" 
@@ -1412,13 +1452,13 @@ export default function App() {
               </div>
             </div>
  
-            <div className="border-t border-slate-800/85 my-1"></div>
+            <div className="border-t border-slate-800/50 my-1"></div>
  
             {/* Login control form */}
             <form onSubmit={handleLogin} className="space-y-4">
               {loginError && (
-                <div className="bg-rose-950/80 border border-rose-800 text-rose-200 text-xs p-3 rounded-lg flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <div className="bg-rose-950/30 backdrop-blur-md border border-rose-800/50 text-rose-200 text-xs p-3 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                   <span>{loginError}</span>
                 </div>
               )}
@@ -1430,7 +1470,7 @@ export default function App() {
                   placeholder="Contoh: admin atau sman2ciamis"
                   value={loginUsername}
                   onChange={e => setLoginUsername(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-600 rounded-xl p-3 text-xs focus:outline-none focus:border-teal-505 font-mono"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-600 rounded-xl p-3 text-xs focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-all font-mono"
                   required
                 />
               </div>
@@ -1442,7 +1482,7 @@ export default function App() {
                   placeholder="Masukkan password akun Anda"
                   value={loginPassword}
                   onChange={e => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-600 rounded-xl p-3 text-xs focus:outline-none focus:border-teal-505 font-mono"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-600 rounded-xl p-3 text-xs focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-all font-mono"
                   required
                 />
               </div>
@@ -1450,14 +1490,14 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isLogining}
-                className={`w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-lg cursor-pointer transition-all border border-emerald-500 select-none ${isLogining ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full py-3 px-4 bg-teal-600 hover:bg-teal-505 active:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-lg hover:shadow-teal-900/20 cursor-pointer transition-all border border-teal-500 select-none ${isLogining ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {isLogining ? "MEMVERIFIKASI AUTENTIKASI..." : "MASUK KE PORTAL SIPAK"}
               </button>
             </form>
  
             {/* Security disclaimer */}
-            <div className="bg-slate-950/80 p-3.5 rounded-lg border border-slate-800 text-[10px] text-slate-400 leading-relaxed font-sans space-y-1">
+            <div className="bg-slate-950/60 p-3.5 rounded-lg border border-slate-800/60 text-[10px] text-slate-400 leading-relaxed font-sans space-y-1">
               <span className="font-bold text-emerald-400 block uppercase">Catatan Verifikasi Otoritas:</span>
               <p>Masing-masing pendaftaran sekolah diatur tersendiri untuk mengelola guru instansinya. Super Admin KCD XIII memegang kendali rekapitulasi data global.</p>
               <div className="pt-1.5 text-slate-500 font-mono text-[9px]">
@@ -1469,7 +1509,7 @@ export default function App() {
         </div>
  
         {/* Clean footer */}
-        <div className="bg-slate-900/60 py-4 text-center text-[10px] text-slate-500 font-mono">
+        <div className="bg-slate-900/30 border-t border-slate-900/40 py-4 text-center text-[10px] text-slate-500 font-mono z-10 relative">
           © 2026 CABANG DINAS PENDIDIKAN WILAYAH XIII PROVINSI JAWA BARAT • PERMENPAN RB NO. 1/2023
         </div>
  
@@ -1480,110 +1520,236 @@ export default function App() {
   // --- AUTHENTICATED: GURU PNS REGISTRY / LISTING VIEW ---
   if (selectedTeacherId === null || profile === null) {
     return (
-      <div className="min-h-screen bg-slate-50/60 font-sans text-slate-800 flex flex-col justify-between">
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col md:flex-row relative">
         
-        {/* Authenticated Top Admin Alert bar */}
-        <div id="top-admin-banner" className="bg-teal-950 text-teal-200 text-[11px] py-2 px-6 flex flex-col sm:flex-row justify-between items-center gap-2 border-b border-teal-900 font-mono select-none print:hidden">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-teal-300 animate-pulse fill-teal-950" />
-            <span className="uppercase text-teal-100">Portal Pegawai Dinas Pendidikan Jabar</span>
+        {/* Mobile Header Bar (Only visible on mobile) */}
+        <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center text-white z-20 print:hidden select-none w-full">
+          <div className="flex items-center gap-2">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/9/99/Coat_of_arms_of_West_Java.svg" 
+              alt="Logo Jabar" 
+              className="w-7 h-9 object-contain"
+              referrerPolicy="no-referrer"
+            />
+            <div>
+              <span className="block text-[8px] font-black text-emerald-400 tracking-wider">SIPAK-GURU PNS</span>
+              <span className="block text-[10px] font-bold text-slate-300">CABIN DISDIK JABAR XIII</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span>Petugas: <strong>{user.displayName || user.username}</strong></span>
-            <button 
-              onClick={handleLogout}
-              className="bg-teal-900 hover:bg-teal-850 border border-teal-700 text-teal-300 px-2.5 py-0.5 rounded flex items-center gap-1 cursor-pointer font-bold text-[10px] transition-colors"
-            >
-              <LogOut className="w-3 h-3" /> Keluar
-            </button>
-          </div>
+          <button 
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+            className="p-1.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg focus:outline-none"
+            title="Buka Menu"
+          >
+            {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
 
-        {/* Dashboard Main Workspace */}
-        <div className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 md:p-8 space-y-6">
-          
-          {/* Main Navigation Menu for Administrator/Super Admin */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-2 sm:p-2.5 flex flex-wrap gap-1.5 shadow-xs select-none print:hidden">
+        {/* Mobile Sidebar Overlay/Drawer */}
+        {mobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 md:hidden transition-all duration-300 print:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar Component (Persistent on Desktop, Drawer on Mobile) */}
+        <aside className={`
+          fixed md:sticky top-0 left-0 bottom-0 z-50 md:z-10
+          w-72 bg-slate-900 border-r border-slate-850 text-slate-200 
+          flex flex-col shrink-0 h-screen transition-transform duration-300 ease-in-out print:hidden
+          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}>
+          {/* Sidebar Top Brand Header */}
+          <div className="p-6 border-b border-slate-850 flex items-center gap-3 bg-slate-950/30">
+            <div className="w-10 h-12 flex items-center justify-center shrink-0">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/9/99/Coat_of_arms_of_West_Java.svg" 
+                alt="Logo Provinsi Jawa Barat" 
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div>
+              <span className="block text-[8px] font-black tracking-widest text-emerald-400 uppercase">PORTAL ADMINISTRASI</span>
+              <h2 className="text-sm font-extrabold text-white tracking-tight uppercase">SIPAK-GURU PNS</h2>
+              <span className="block text-[9px] text-slate-400 font-medium leading-tight">CDP WILAYAH XIII JABAR</span>
+            </div>
+          </div>
+
+          {/* User Profile Info section in Sidebar */}
+          <div className="p-4 mx-4 my-4 bg-slate-950/45 rounded-xl border border-slate-850/80 space-y-2 select-none">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-emerald-600/20 border border-emerald-500/35 flex items-center justify-center">
+                <User className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="truncate min-w-0">
+                <span className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">AKTIF PETUGAS</span>
+                <p className="text-xs font-bold text-slate-200 truncate leading-tight">{user.displayName || user.username}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-850/40">
+              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-900 px-2 py-0.5 rounded-md uppercase">
+                {user.role === 'super_admin' ? 'SUPER ADMIN' : 'ADMIN SEKOLAH'}
+              </span>
+              <div className="flex items-center gap-1 font-mono text-[9px] text-slate-500">
+                <Clock className="w-3 h-3 text-slate-500 animate-pulse" />
+                <span>ONLINE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar Navigation Items */}
+          <nav className="flex-1 px-4 space-y-1.5 py-2 overflow-y-auto">
+            <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest px-3 mb-2.5">WORKSPACE MENU</span>
+            
+            {/* 1. Pangkalan Guru PNS */}
             <button
-              onClick={() => setAdminView("teachers")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                setAdminView("teachers");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                 adminView === "teachers"
-                  ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <LayoutDashboard className="w-4 h-4 text-emerald-500" />
-              PANGKALAN GURU PNS
+              <div className="flex items-center gap-3">
+                <LayoutDashboard className={`w-4 h-4 ${adminView === "teachers" ? "text-white" : "text-emerald-500"}`} />
+                <span>PANGKALAN GURU PNS</span>
+              </div>
             </button>
 
+            {/* 2. Manajemen Akun Sekolah (Super Admin only) */}
             {user.role === "super_admin" && (
               <button
-                onClick={() => setAdminView("users")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                onClick={() => {
+                  setAdminView("users");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                   adminView === "users"
-                    ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                    : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
                 }`}
               >
-                <Users className="w-4 h-4 text-teal-600" />
-                MANAJEMEN AKUN SEKOLAH
-                <span className="bg-teal-100 text-teal-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase select-none">
+                <div className="flex items-center gap-3">
+                  <Users className={`w-4 h-4 ${adminView === "users" ? "text-white" : "text-teal-400"}`} />
+                  <span>MANAJEMEN AKUN</span>
+                </div>
+                <span className="bg-teal-950 text-teal-300 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-teal-850 uppercase">
                   SUPER
                 </span>
               </button>
             )}
 
+            {/* 3. Informasi / Master Data Sekolah */}
             <button
-              onClick={() => setAdminView("schools")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                setAdminView("schools");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                 adminView === "schools"
-                  ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <School className="w-4 h-4 text-emerald-500" />
-              {user.role === 'school_admin' ? "INFORMASI SEKOLAH" : "MASTER DATA SEKOLAH"}
+              <div className="flex items-center gap-3">
+                <School className={`w-4 h-4 ${adminView === "schools" ? "text-white" : "text-emerald-500"}`} />
+                <span>{user.role === 'school_admin' ? "INFORMASI SEKOLAH" : "MASTER DATA SEKOLAH"}</span>
+              </div>
             </button>
 
+            {/* 4. Atur Kop & Logo Surat */}
             <button
-              onClick={() => setAdminView("kop")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                setAdminView("kop");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                 adminView === "kop"
-                  ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <Settings className="w-4 h-4 text-blue-600" />
-              ATUR KOP & LOGO SURAT
-              <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase select-none">
+              <div className="flex items-center gap-3">
+                <Settings className={`w-4 h-4 ${adminView === "kop" ? "text-white" : "text-blue-500"}`} />
+                <span>KOP & LOGO SURAT</span>
+              </div>
+              <span className="bg-amber-950 text-amber-405 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-amber-900 uppercase">
                 ADMIN
               </span>
             </button>
 
+            {/* 5. Simulasi Kalkulator */}
             <button
-              onClick={() => setAdminView("calculator")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                setAdminView("calculator");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                 adminView === "calculator"
-                  ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <Calculator className="w-4 h-4 text-pink-600" />
-              SIMULASI KALKULATOR
+              <div className="flex items-center gap-3">
+                <Calculator className={`w-4 h-4 ${adminView === "calculator" ? "text-white" : "text-pink-500"}`} />
+                <span>SIMULASI KALKULATOR</span>
+              </div>
             </button>
 
+            {/* 6. Panduan & Regulasi */}
             <button
-              onClick={() => setAdminView("regulations")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => {
+                setAdminView("regulations");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
                 adminView === "regulations"
-                  ? "bg-teal-605 bg-teal-600 text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <BookOpen className="w-4 h-4 text-violet-600" />
-              PANDUAN & REGULASI BKN
+              <div className="flex items-center gap-3">
+                <BookOpen className={`w-4 h-4 ${adminView === "regulations" ? "text-white" : "text-violet-500"}`} />
+                <span>PANDUAN & REGULASI BKN</span>
+              </div>
             </button>
+          </nav>
+
+          {/* Sidebar Bottom Session Controls & Exit */}
+          <div className="p-4 border-t border-slate-850 space-y-3 bg-slate-950/20 select-none shrink-0">
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white rounded-xl border border-slate-750 hover:border-rose-850 font-bold text-xs transition-all cursor-pointer shadow-xs"
+            >
+              <LogOut className="w-3.5 h-3.5" /> KELUAR PORTAL
+            </button>
+            <div className="text-center text-[9px] text-slate-500 font-mono tracking-tight leading-tight">
+              SIPAK-GURU Hub v1.5 • 2026<br />Dinas Pendidikan Jabar
+            </div>
           </div>
+        </aside>
+
+        {/* Content Container (takes up flex-1 on right) */}
+        <main className="flex-1 flex flex-col justify-between min-h-0 bg-slate-50/70 overflow-x-hidden">
+          
+          {/* Top subtle workspace alert bar on desktop */}
+          <div id="top-admin-banner" className="hidden md:flex bg-slate-900 text-slate-400 text-[10px] py-2 px-8 justify-between items-center border-b border-slate-950 select-none print:hidden shrink-0">
+            <div className="flex items-center gap-1.5 font-mono">
+              <Clock className="w-3 h-3 text-teal-400 animate-pulse" />
+              <span className="uppercase text-slate-500">SISTEM INTEGRASI ANGKA KREDIT GURU PNS</span>
+            </div>
+            <div className="flex items-center gap-1 font-mono text-[9px]">
+              <span>KCD Wil. XIII Ciamis Pangandaran Banjar</span>
+            </div>
+          </div>
+
+          {/* Main workspace frame containing dynamic views */}
+          <div className="p-4 sm:p-6 lg:p-8 flex-1 w-full max-w-7xl mx-auto space-y-6">
 
           {adminView === "teachers" && (
             <div className="space-y-6">
@@ -2394,12 +2560,13 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <footer className="bg-slate-900 border-t border-slate-950 py-6 px-6 text-center text-xs text-slate-400 select-none">
+        <footer className="bg-slate-900 border-t border-slate-950 py-6 px-6 text-center text-xs text-slate-400 select-none shrink-0">
           <p className="font-bold text-slate-300">SIPAK-GURU Hub © 2026</p>
           <p className="text-[10px] text-slate-500 mt-0.5">Cabang Dinas Pendidikan Wilayah XIII Provinsi Jawa Barat</p>
         </footer>
 
         {renderConfirmModals()}
+        </main>
       </div>
     );
   }
