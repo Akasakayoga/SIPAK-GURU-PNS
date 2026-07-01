@@ -221,7 +221,10 @@ export default function DashboardTab({
                 type="number"
                 step="0.001"
                 value={editForm.akIntegrasi2022}
-                onChange={e => setEditForm({ ...editForm, akIntegrasi2022: parseFloat(e.target.value) || 0 })}
+                onChange={e => {
+                  const cleanVal = e.target.value.replace(',', '.');
+                  setEditForm({ ...editForm, akIntegrasi2022: parseFloat(cleanVal) || 0 });
+                }}
                 className="w-full text-sm bg-teal-50/50 border border-teal-300 rounded px-2.5 py-1.5 focus:outline-teal-600 font-mono font-bold"
                 placeholder="0.00"
                 required

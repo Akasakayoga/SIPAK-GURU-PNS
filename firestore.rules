@@ -24,20 +24,21 @@ service cloud.firestore {
 
     // Validate a teacher document shape on create/update
     function isValidTeacher(data) {
-      return data.keys().hasAll(['name', 'nip', 'currentGolongan', 'targetGolongan', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().size() <= 35
+      return data.keys().hasAll(['name', 'nip', 'currentGolongan', 'targetGolongan'])
+        && data.keys().size() <= 50
         && data.name is string && data.name.size() > 0 && data.name.size() <= 150
         && data.nip is string && data.nip.size() >= 10 && data.nip.size() <= 18
         && data.currentGolongan is string && data.currentGolongan.size() <= 10
         && data.targetGolongan is string && data.targetGolongan.size() <= 10
-        && data.createdAt is timestamp && data.updatedAt is timestamp
-        && data.createdBy is string;
+        && (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string)
+        && (!('createdBy' in data) || data.createdBy is string);
     }
 
     // Validate an evaluation document shape under a teacher
     function isValidEvaluation(data) {
-      return data.keys().hasAll(['year', 'period', 'rating', 'level', 'coefficient', 'multiplier', 'creditEarned', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().size() <= 20
+      return data.keys().hasAll(['year', 'period', 'rating', 'level', 'coefficient', 'multiplier', 'creditEarned'])
+        && data.keys().size() <= 30
         && (data.year is int || data.year is number) && data.year >= 1500 && data.year <= 2100
         && data.period is string && data.period.size() > 0 && data.period.size() <= 100
         && data.rating is string && data.rating.size() > 0 && data.rating.size() <= 30
@@ -51,9 +52,9 @@ service cloud.firestore {
         && (!data.keys().hasAny(['endDate']) || data.endDate is string)
         && (!data.keys().hasAny(['isCustomRange']) || (data.isCustomRange == true || data.isCustomRange == false))
         && (!data.keys().hasAny(['customMonths']) || (data.customMonths is int || data.customMonths is number))
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp
-        && data.createdBy is string;
+        && (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string)
+        && (!('createdBy' in data) || data.createdBy is string);
     }
 
     // Validate Kop Settings document shape

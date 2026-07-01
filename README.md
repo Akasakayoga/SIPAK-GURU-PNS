@@ -13,7 +13,7 @@
 ## 🌟 Visual Preview
 
 <div align="center">
-  <img src="./src/assets/images/Banner_new.jpeg" alt="SIPAK-GURU Hub Header Banner" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
+  <img src="./src/assets/images/readme_banner_1782409268625.jpg" alt="SIPAK-GURU Hub Header Banner" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
 </div>
 
 ---

@@ -55,6 +55,15 @@ import UserManagementTab from "./components/UserManagementTab";
 import SchoolManagementTab from "./components/SchoolManagementTab";
 import { toast, swal } from "./lib/toast";
 
+// Helper to safely parse decimal values in Indonesian format (supporting commas)
+export const parseFloatValue = (val: any): number => {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).trim().replace(',', '.');
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 
 export interface AppUser {
   username: string;
@@ -422,11 +431,11 @@ export default function App() {
             school: data.school || "",
             currentGolongan: data.currentGolongan || "III/c",
             targetGolongan: data.targetGolongan || "III/d",
-            baseAK: Number(data.baseAK) || 0,
-            akIntegrasi2022: Number(data.akIntegrasi2022) || 0,
-            akPendidikan: Number(data.akPendidikan) || 0,
+            baseAK: parseFloatValue(data.baseAK) || 0,
+            akIntegrasi2022: parseFloatValue(data.akIntegrasi2022) || 0,
+            akPendidikan: parseFloatValue(data.akPendidikan) || 0,
             ratingSKP: data.ratingSKP || "Baik",
-            workDurationYears: Number(data.workDurationYears) || 1,
+            workDurationYears: parseFloatValue(data.workDurationYears) || 1,
             karpegNumber: data.karpegNumber || "",
             birthPlaceDate: data.birthPlaceDate || "",
             gender: data.gender || "Laki-Laki",
@@ -727,8 +736,8 @@ export default function App() {
         school: assignedSchool.toUpperCase().trim(),
         currentGolongan: newTeacherForm.currentGolongan,
         targetGolongan: newTeacherForm.targetGolongan,
-        baseAK: Number(newTeacherForm.baseAK),
-        akIntegrasi2022: Number(newTeacherForm.akIntegrasi2022),
+        baseAK: parseFloatValue(newTeacherForm.baseAK),
+        akIntegrasi2022: parseFloatValue(newTeacherForm.akIntegrasi2022),
         akPendidikan: 0,
         ratingSKP: "Baik",
         workDurationYears: 3,
@@ -1104,14 +1113,33 @@ export default function App() {
   const handleProfileChange = async (updated: TeacherProfile) => {
     if (!selectedTeacherId) return;
     
+    // Ensure all numeric values are cleanly parsed floats/numbers
+    const parsedUpdated: TeacherProfile = {
+      ...updated,
+      baseAK: parseFloatValue(updated.baseAK),
+      akIntegrasi2022: parseFloatValue(updated.akIntegrasi2022),
+      akPendidikan: parseFloatValue(updated.akPendidikan),
+      workDurationYears: parseFloatValue(updated.workDurationYears) || 1
+    };
+
     // Set local state immediately for instant responsive live view and printing
-    setProfile(updated);
+    setProfile(parsedUpdated);
 
     try {
+      // Clean undefined properties and system internal fields to prevent Firestore rule violations
+      const cleanData: any = {};
+      Object.entries(parsedUpdated).forEach(([key, value]) => {
+        if (value !== undefined && key !== 'id' && key !== 'createdAt' && key !== 'createdBy') {
+          cleanData[key] = value;
+        }
+      });
+
       await updateDoc(doc(db, "teachers", selectedTeacherId), {
-        ...updated,
+        ...cleanData,
         updatedAt: serverTimestamp()
       });
+
+      toast.success("Data pegawai berhasil disimpan ke cloud database.");
     } catch (err) {
       console.error("Firestore update failed:", err);
       handleFirestoreError(err, OperationType.UPDATE, `teachers/${selectedTeacherId}`);
