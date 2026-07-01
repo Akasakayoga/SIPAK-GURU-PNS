@@ -34,8 +34,9 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errorMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -51,5 +52,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error Details: ', JSON.stringify(errInfo));
+
+  // Dynamically import logger to prevent circular dependency
+  import('./lib/logger').then(({ logEvent }) => {
+    logEvent(`Firestore error: ${errorMsg}`, 'error', operationType, path).catch(e => {
+      console.warn('Dynamic logEvent failed:', e);
+    });
+  }).catch(e => {
+    console.warn('Failed to load logger dynamically:', e);
+  });
+
   throw new Error(JSON.stringify(errInfo));
 }

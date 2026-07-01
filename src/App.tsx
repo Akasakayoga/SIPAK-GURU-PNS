@@ -28,7 +28,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  Terminal
 } from "lucide-react";
 import { 
   collection, 
@@ -53,6 +54,7 @@ import OfficialPAKReport from "./components/OfficialPAKReport";
 import KopAdminTab from "./components/KopAdminTab";
 import UserManagementTab from "./components/UserManagementTab";
 import SchoolManagementTab from "./components/SchoolManagementTab";
+import LoggingManagementTab from "./components/LoggingManagementTab";
 import { toast, swal } from "./lib/toast";
 
 // Helper to safely parse decimal values in Indonesian format (supporting commas)
@@ -169,7 +171,7 @@ export default function App() {
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [evaluations, setEvaluations] = useState<SKPEvaluation[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "activities" | "calculator" | "regulations" | "pak_report" | "kop_admin" | "user_management">("dashboard");
-  const [adminView, setAdminView] = useState<"teachers" | "users" | "kop" | "calculator" | "regulations" | "schools">("teachers");
+  const [adminView, setAdminView] = useState<"teachers" | "users" | "kop" | "calculator" | "regulations" | "schools" | "logs">("teachers");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [schoolsList, setSchoolsList] = useState<{ id: string, name: string, npsn: string, principalName?: string, principalNip?: string, principalStatus?: 'definitif' | 'plt' | 'plh' }[]>([]);
 
@@ -211,9 +213,32 @@ export default function App() {
 
     window.addEventListener('sipak_toast', handleToastEvent);
     window.addEventListener('sipak_swal', handleSwalEvent);
+
+    // Global Error and Promise Rejection logging
+    const handleGlobalError = (event: ErrorEvent) => {
+      if (event.message?.includes('websocket') || event.message?.includes('HMR')) return;
+      import('./lib/logger').then(({ logEvent }) => {
+        logEvent(`Runtime Error: ${event.message} at ${event.filename}:${event.lineno}`, 'error').catch(() => {});
+      });
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const errorMsg = reason instanceof Error ? reason.message : String(reason);
+      if (errorMsg.includes('websocket') || errorMsg.includes('HMR')) return;
+      import('./lib/logger').then(({ logEvent }) => {
+        logEvent(`Unhandled Promise Rejection: ${errorMsg}`, 'error').catch(() => {});
+      });
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     return () => {
       window.removeEventListener('sipak_toast', handleToastEvent);
       window.removeEventListener('sipak_swal', handleSwalEvent);
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);
 
@@ -1746,6 +1771,27 @@ export default function App() {
                 <span>PANDUAN & REGULASI BKN</span>
               </div>
             </button>
+
+            {/* 7. Logging & Error Management */}
+            <button
+              onClick={() => {
+                setAdminView("logs");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
+                adminView === "logs"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Terminal className={`w-4 h-4 ${adminView === "logs" ? "text-white" : "text-amber-500"}`} />
+                <span>LOGGING MANAGEMENT</span>
+              </div>
+              <span className="bg-slate-900 text-amber-400 text-[8px] font-mono px-1.5 py-0.5 rounded border border-slate-750 uppercase">
+                SYSTEM
+              </span>
+            </button>
           </nav>
 
           {/* Sidebar Bottom Session Controls & Exit */}
@@ -2583,6 +2629,10 @@ export default function App() {
 
           {adminView === "regulations" && (
             <RegulationsTab />
+          )}
+
+          {adminView === "logs" && (
+            <LoggingManagementTab />
           )}
 
         </div>

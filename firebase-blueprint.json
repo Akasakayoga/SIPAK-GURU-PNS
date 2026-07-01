@@ -109,6 +109,24 @@
         "principalNip": { "type": "string" }
       },
       "required": ["npsn", "name"]
+    },
+    "systemLog": {
+      "title": "System Log",
+      "description": "System-wide audit logs and recorded operational errors.",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "error": { "type": "string" },
+        "operationType": { "type": "string" },
+        "path": { "type": "string" },
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "browser": { "type": "string" },
+        "severity": { "type": "string", "enum": ["info", "warning", "error", "critical"] },
+        "resolved": { "type": "boolean" },
+        "resolutionNotes": { "type": "string" }
+      },
+      "required": ["timestamp", "error", "severity"]
     }
   },
   "firestore": {
@@ -131,6 +149,10 @@
     "settings/{settingsId}": {
       "schema": "kopSettings",
       "description": "Collection of global or user-specific custom settings such as agency header configurations."
+    },
+    "system_logs/{logId}": {
+      "schema": "systemLog",
+      "description": "Operational and error logs for application performance monitoring."
     }
   }
 }

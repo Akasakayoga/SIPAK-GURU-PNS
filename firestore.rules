@@ -150,5 +150,10 @@ service cloud.firestore {
       allow get, delete: if isValidId(settingsId);
       allow create, update: if isValidId(settingsId) && isValidKopSettings(incoming());
     }
+
+    // System logs collection for error tracking
+    match /system_logs/{logId} {
+      allow get, list, create, update, delete: if true;
+    }
   }
 }
