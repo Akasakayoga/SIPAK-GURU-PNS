@@ -55,6 +55,7 @@ import KopAdminTab from "./components/KopAdminTab";
 import UserManagementTab from "./components/UserManagementTab";
 import SchoolManagementTab from "./components/SchoolManagementTab";
 import LoggingManagementTab from "./components/LoggingManagementTab";
+import AbsensiTab from "./components/AbsensiTab";
 import { toast, swal } from "./lib/toast";
 
 // Helper to safely parse decimal values in Indonesian format (supporting commas)
@@ -635,6 +636,31 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.password === pWord) {
+            // Check device lock for school admins (pegawai/operator)
+            const currentRole = data.role || "school_admin";
+            if (currentRole === "school_admin") {
+              let deviceId = localStorage.getItem("sipak_device_id");
+              if (!deviceId) {
+                deviceId = "dev_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now().toString(36);
+                localStorage.setItem("sipak_device_id", deviceId);
+              }
+              
+              if (data.registeredDeviceId && data.registeredDeviceId !== deviceId) {
+                setLoginError("Perangkat tidak cocok! Akun Anda terdaftar di HP/perangkat lain.");
+                setIsLogining(false);
+                swal.fire({
+                  title: "HP Terkunci!",
+                  text: "Akun Anda terdaftar pada perangkat HP lain. Silakan hubungi Administrator KCD XIII untuk melakukan Reset HP.",
+                  icon: "error",
+                  confirmButtonText: "Selesai"
+                });
+                return;
+              } else if (!data.registeredDeviceId) {
+                // Register device
+                await updateDoc(docRef, { registeredDeviceId: deviceId });
+              }
+            }
+
             sessionUser = {
               username: uName,
               displayName: data.displayName || uName,
@@ -1674,6 +1700,27 @@ export default function App() {
               </div>
             </button>
 
+            {/* PRESENSI & ABSENSI PEGAWAI */}
+            <button
+              onClick={() => {
+                setAdminView("absensi");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left ${
+                adminView === "absensi"
+                  ? "bg-teal-600 text-white shadow-lg shadow-teal-950/20"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Clock className={`w-4 h-4 ${adminView === "absensi" ? "text-white" : "text-amber-500"}`} />
+                <span>PRESENSI & ABSENSI</span>
+              </div>
+              <span className="bg-amber-950 text-amber-450 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-amber-900 uppercase">
+                NEW
+              </span>
+            </button>
+
             {/* 2. Manajemen Akun Sekolah (Super Admin only) */}
             {user.role === "super_admin" && (
               <button
@@ -2633,6 +2680,10 @@ export default function App() {
 
           {adminView === "logs" && (
             <LoggingManagementTab />
+          )}
+
+          {adminView === "absensi" && (
+            <AbsensiTab user={user} />
           )}
 
         </div>
