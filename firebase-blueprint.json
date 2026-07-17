@@ -92,29 +92,11 @@
         "password": { "type": "string", "description": "Readable or hashed password." },
         "school": { "type": "string", "description": "Associated school name, or 'ALL' for Super Admins." },
         "role": { "type": "string", "enum": ["super_admin", "school_admin"] },
-        "displayName": { "type": "string", "description": "Display name of the school operator." },
-        "registeredDeviceId": { "type": "string", "description": "Satu HP Satu Akun device identification lock." }
+        "displayName": { "type": "string", "description": "Display name of the school operator." }
       },
       "required": ["username", "password", "school", "role", "displayName"]
     },
-    "attendance": {
-      "title": "Attendance Log",
-      "description": "Daily clock-in and clock-out logs with verified camera snapshot, coordinates, and Unit Kerja metadata.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "username": { "type": "string" },
-        "displayName": { "type": "string" },
-        "school": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "type": { "type": "string", "enum": ["clock_in", "clock_out"] },
-        "latitude": { "type": "number" },
-        "longitude": { "type": "number" },
-        "address": { "type": "string" },
-        "photoUrl": { "type": "string", "description": "Base64 image snapshot with coordinate/timestamp watermarks overlaid." }
-      },
-      "required": ["id", "username", "timestamp", "type", "latitude", "longitude", "photoUrl"]
-    },
+
     "school": {
       "title": "School Data",
       "description": "Master Data Sekolah (Unit Kerja) managed in the administrative area.",
@@ -153,10 +135,7 @@
       "schema": "appUser",
       "description": "Custom user accounts for schools and super admins to login without standard OAuth constraints."
     },
-    "attendances/{attendanceId}": {
-      "schema": "attendance",
-      "description": "Daily attendance logs for school operators / civil servants."
-    },
+
     "schools/{schoolId}": {
       "schema": "school",
       "description": "Master data list of registered schools."

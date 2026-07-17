@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Key, Users, School, ShieldAlert, Shield, AlertTriangle, RefreshCw, Smartphone } from "lucide-react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, updateDoc, deleteField } from "firebase/firestore";
+import { Plus, Trash2, Key, Users, School, ShieldAlert, Shield, AlertTriangle, RefreshCw } from "lucide-react";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { toast, swal } from "../lib/toast";
 
@@ -10,7 +10,6 @@ interface AppUser {
   role: 'super_admin' | 'school_admin';
   school: string;
   displayName: string;
-  registeredDeviceId?: string;
 }
 
 export default function UserManagementTab() {
@@ -69,8 +68,7 @@ export default function UserManagementTab() {
             password: data.password || "",
             role: data.role || "school_admin",
             school: data.school || "",
-            displayName: data.displayName || "",
-            registeredDeviceId: data.registeredDeviceId || ""
+            displayName: data.displayName || ""
           });
         });
         // Sort admins first, then username
@@ -169,32 +167,6 @@ export default function UserManagementTab() {
       });
     } finally {
       setPendingDelete(null);
-    }
-  };
-
-  const handleResetDevice = async (username: string, displayName: string) => {
-    const confirmation = window.confirm(
-      `Apakah Anda yakin ingin menghapus registrasi perangkat (Reset HP) untuk operator "${displayName}"? ` +
-      `Ini akan me-lock out/mereset kuncian device lama sehingga pengguna bisa melakukan pendaftaran login kembali di perangkat/HP baru.`
-    );
-    if (!confirmation) return;
-
-    try {
-      await updateDoc(doc(db, "app_users", username), {
-        registeredDeviceId: deleteField()
-      });
-      swal.fire({
-        title: "Reset HP Berhasil!",
-        text: `Registrasi HP untuk akun "${displayName}" berhasil dihapus. Operator kini dapat login menggunakan perangkat barunya.`,
-        icon: "success",
-        confirmButtonText: "Selesai"
-      });
-    } catch (err) {
-      swal.fire({
-        title: "Gagal Reset HP!",
-        text: "Terjadi kesalahan saat menghapus data perangkat: " + String(err),
-        icon: "error"
-      });
     }
   };
 
@@ -443,19 +415,7 @@ export default function UserManagementTab() {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-right select-none flex justify-end gap-1.5 items-center">
-                      {u.registeredDeviceId ? (
-                        <button
-                          onClick={() => handleResetDevice(u.username, u.displayName)}
-                          title="Hapus Registrasi Perangkat (Reset HP)"
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-550 hover:bg-amber-600 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs cursor-pointer select-none uppercase border border-amber-600"
-                        >
-                          <Smartphone className="w-3.5 h-3.5" />
-                          <span>RESET HP</span>
-                        </button>
-                      ) : u.role === "school_admin" ? (
-                        <span className="text-[10px] text-slate-400 italic font-bold">Belum Terkunci</span>
-                      ) : null}
+                    <td className="p-4 text-right select-none">
                       <button
                         onClick={() => handleDeleteUser(u.username, u.displayName)}
                         disabled={u.username === 'admin'}
