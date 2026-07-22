@@ -47,11 +47,13 @@ function oklchToRgb(l: number, c: number, h: number, a: number = 1): string {
 }
 
 function replaceOklchInString(cssText: string): string {
-  if (!cssText || !cssText.includes('oklch')) return cssText;
+  if (!cssText || typeof cssText !== 'string') return cssText;
   
-  return cssText.replace(/oklch\s*\(([^)]+)\)/gi, (match, innerText) => {
+  // Replace oklch(...)
+  let result = cssText.replace(/oklch\s*\(([^)]+)\)/gi, (match, innerText) => {
     try {
-      let parts = innerText.trim().split(/[\s,]+/);
+      const cleanedText = innerText.replace(/\//g, ' / ');
+      let parts = cleanedText.trim().split(/[\s,]+/);
       parts = parts.filter((p: string) => p !== '/');
       
       if (parts.length < 3) return '#808080';
@@ -92,6 +94,21 @@ function replaceOklchInString(cssText: string): string {
       return '#808080';
     }
   });
+
+  // Replace oklab(...)
+  result = result.replace(/oklab\s*\(([^)]+)\)/gi, '#808080');
+
+  // Replace color-mix(...)
+  result = result.replace(/color-mix\s*\(([^)]+)\)/gi, '#808080');
+
+  // Replace light-dark(...)
+  result = result.replace(/light-dark\s*\(([^,]+),[^)]+\)/gi, '$1');
+
+  // Fallback for any remaining unparsed oklch or oklab statements
+  result = result.replace(/oklch\s*\([^;}]+\)/gi, '#808080');
+  result = result.replace(/oklab\s*\([^;}]+\)/gi, '#808080');
+
+  return result;
 }
 
 const compressLogoImage = (base64Str: string): Promise<string> => {
@@ -194,6 +211,13 @@ export default function OfficialPAKReport({
 
       toast.info("Sedang memproses & mengunduh berkas PDF PAK Resmi format F4/Folio...");
 
+      // 0. Proactively sanitize all <style> tags in the parent document to prevent html2canvas from encountering raw oklch/oklab
+      document.querySelectorAll('style').forEach((styleTag) => {
+        if (styleTag.textContent && (styleTag.textContent.includes('oklch') || styleTag.textContent.includes('oklab') || styleTag.textContent.includes('color-mix'))) {
+          styleTag.textContent = replaceOklchInString(styleTag.textContent);
+        }
+      });
+
       // Create a hidden, off-screen iframe that has standard page dimensions to trigger a high-fidelity paint
       iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -212,16 +236,39 @@ export default function OfficialPAKReport({
       // Gather and sanitize all style resources from parent document to strip and convert oklch
       let styleMarkup = '';
       
-      // 1. Gather Stylesheet Tag Contents
+      // 1. Gather CSS rules directly from document.styleSheets
+      try {
+        for (let i = 0; i < document.styleSheets.length; i++) {
+          const sheet = document.styleSheets[i];
+          try {
+            const rules = sheet.cssRules || sheet.rules;
+            if (rules) {
+              let sheetText = '';
+              for (let j = 0; j < rules.length; j++) {
+                sheetText += rules[j].cssText + '\n';
+              }
+              if (sheetText) {
+                styleMarkup += `<style>${replaceOklchInString(sheetText)}</style>\n`;
+              }
+            }
+          } catch (e) {
+            // Ignore cross-origin access restriction
+          }
+        }
+      } catch (e) {}
+
+      // 2. Gather Stylesheet Tag Contents
       const styleTags = document.querySelectorAll('style');
       styleTags.forEach(tag => {
         try {
-          const sanitized = replaceOklchInString(tag.innerHTML);
-          styleMarkup += `<style id="${tag.id || ''}">${sanitized}</style>\n`;
+          const content = tag.innerHTML || tag.textContent || '';
+          if (content) {
+            styleMarkup += `<style id="${tag.id || ''}">${replaceOklchInString(content)}</style>\n`;
+          }
         } catch (e) {}
       });
       
-      // 2. Fetch and Sanitize Local Linked Stylesheets
+      // 3. Fetch and Sanitize Local Linked Stylesheets
       const linkTags = document.querySelectorAll('link[rel="stylesheet"]');
       for (let i = 0; i < linkTags.length; i++) {
         const link = linkTags[i] as HTMLLinkElement;
@@ -233,15 +280,9 @@ export default function OfficialPAKReport({
               const cssText = await response.text();
               const sanitized = replaceOklchInString(cssText);
               styleMarkup += `<style data-from-link="${href}">${sanitized}</style>\n`;
-            } else {
-              styleMarkup += link.outerHTML;
             }
-          } else {
-            styleMarkup += link.outerHTML;
           }
-        } catch (e) {
-          styleMarkup += link.outerHTML;
-        }
+        } catch (e) {}
       }
 
       // Sanitize the element's direct content strings and inline styles for any remaining oklch terms
@@ -310,12 +351,26 @@ export default function OfficialPAKReport({
           scrollY: 0,
           scrollX: 0,
           logging: false,
+          window: iframe.contentWindow as any,
+          document: iframeDoc as any,
           onclone: (clonedDoc: Document) => {
-            // Strip any remaining oklch variables from inline style or stylesheets in the clone
+            // 1. Sanitize all <style> tags in cloned document
+            const clonedStyles = clonedDoc.querySelectorAll('style');
+            clonedStyles.forEach(style => {
+              if (style.textContent && (style.textContent.includes('oklch') || style.textContent.includes('oklab') || style.textContent.includes('color-mix'))) {
+                style.textContent = replaceOklchInString(style.textContent);
+              }
+            });
+
+            // 2. Remove any link tags to prevent html2canvas from fetching un-sanitized external CSS files
+            const clonedLinks = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+            clonedLinks.forEach(link => link.remove());
+
+            // 3. Strip any remaining oklch variables from inline style or calculated properties in the clone
             const allNodes = clonedDoc.querySelectorAll('*');
             allNodes.forEach((node) => {
               const el = node as HTMLElement;
-              if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+              if (el.style && el.style.cssText && (el.style.cssText.includes('oklch') || el.style.cssText.includes('oklab') || el.style.cssText.includes('color-mix'))) {
                 el.style.cssText = replaceOklchInString(el.style.cssText);
               }
             });
@@ -657,55 +712,55 @@ export default function OfficialPAKReport({
   // Reusable Personal Details Table
   const renderPersonalTable = () => (
     <div className="border border-black text-[11px] text-black w-full my-3 font-serif">
-      <div className="bg-slate-100 font-bold text-center border-b border-black py-1 select-none tracking-wide text-[10px]">
+      <div className="bg-slate-100 font-bold text-center border-b border-black py-1.5 select-none tracking-wide text-[10px]">
         PEJABAT FUNGSIONAL YANG DINILAI
       </div>
       <table className="w-full text-left border-collapse">
         <tbody>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 w-[5%] text-center border-r border-black font-semibold">1</td>
-            <td className="py-1 px-2 w-[35%] border-r border-black font-semibold">NAMA</td>
-            <td className="py-1 px-2 text-[11px]"> {profile.name || "___________________________"}</td>
+            <td className="py-1.5 px-2.5 w-[5%] text-center border-r border-black font-semibold align-middle">1</td>
+            <td className="py-1.5 px-3 w-[35%] border-r border-black font-semibold align-middle">NAMA</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {profile.name || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">2</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">NIP</td>
-            <td className="py-1 px-2 font-mono text-[10.5px]"> {profile.nip || "___________________________"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">2</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">NIP</td>
+            <td className="py-1.5 px-3 font-mono text-[10.5px] align-middle"> {profile.nip || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">3</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">NOMOR SERI KARPEG</td>
-            <td className="py-1 px-2 font-mono text-[10.5px]"> {profile.karpegNumber || "-"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">3</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">NOMOR SERI KARPEG</td>
+            <td className="py-1.5 px-3 font-mono text-[10.5px] align-middle"> {profile.karpegNumber || "-"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">4</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">TEMPAT/TGL. LAHIR</td>
-            <td className="py-1 px-2 text-[11px]"> {profile.birthPlaceDate || "___________________________"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">4</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">TEMPAT/TGL. LAHIR</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {profile.birthPlaceDate || "___________________________"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">5</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">JENIS KELAMIN</td>
-            <td className="py-1 px-2 text-[11px]"> {profile.gender || "Laki-Laki"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">5</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">JENIS KELAMIN</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {profile.gender || "Laki-Laki"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">6</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">PANGKAT/GOLONGAN RUANG TMT</td>
-            <td className="py-1 px-2 text-[11px]"> {currentDetail.pangkat} / {profile.currentGolongan} / {profile.tmtCurrentPangkat || "01-04-2024"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">6</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">PANGKAT/GOLONGAN RUANG TMT</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {currentDetail.pangkat} / {profile.currentGolongan} / {profile.tmtCurrentPangkat || "01-04-2024"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">7</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">JABATAN/TMT</td>
-            <td className="py-1 px-2 text-[11px]"> GURU {getTeacherLevel(profile.currentGolongan).toUpperCase()} / {profile.tmtCurrentJabatan || "24-08-2023"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">7</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">JABATAN/TMT</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> GURU {getTeacherLevel(profile.currentGolongan).toUpperCase()} / {profile.tmtCurrentJabatan || "24-08-2023"}</td>
           </tr>
           <tr className="border-b border-black">
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">8</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">UNIT KERJA</td>
-            <td className="py-1 px-2 text-[11px]"> {profile.unitKerja || profile.school || "___________________________"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">8</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">UNIT KERJA</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {profile.unitKerja || profile.school || "___________________________"}</td>
           </tr>
           <tr>
-            <td className="py-1 px-2 text-center border-r border-black font-semibold">9</td>
-            <td className="py-1 px-2 border-r border-black font-semibold">INSTANSI</td>
-            <td className="py-1 px-2 text-[11px]"> {profile.instansiBiro || "PEMERINTAH PROVINSI JAWA BARAT"}</td>
+            <td className="py-1.5 px-2.5 text-center border-r border-black font-semibold align-middle">9</td>
+            <td className="py-1.5 px-3 border-r border-black font-semibold align-middle">INSTANSI</td>
+            <td className="py-1.5 px-3 text-[11px] align-middle"> {profile.instansiBiro || "PEMERINTAH PROVINSI JAWA BARAT"}</td>
           </tr>
         </tbody>
       </table>
@@ -1374,11 +1429,21 @@ export default function OfficialPAKReport({
           </button>
 
           <button
-            disabled={true}
-            className="flex justify-center items-center gap-1.5 text-slate-500 font-bold text-xs sm:text-sm px-4 py-3 rounded-lg shadow-sm transition-all border bg-slate-100 border-slate-200 cursor-not-allowed"
+            onClick={handleDownloadPDF}
+            disabled={isDownloading}
+            className="flex justify-center items-center gap-1.5 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-lg shadow-md transition-all cursor-pointer disabled:cursor-wait"
           >
-            <Download className="w-4 h-4 text-slate-400" />
-            Unduh Berkas PDF (Masih Dalam Pengembangan / Belum Berfungsi)
+            {isDownloading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Memproses Berkas PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 text-white" />
+                <span>Unduh Berkas PDF (F4 / Folio)</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -1410,10 +1475,8 @@ export default function OfficialPAKReport({
         </div>
       </div>
 
-      {/* Virtual F4 Canvas Stack (7 cols) */}
-      <div id="pak-print-pages" className="xl:col-span-7 space-y-8 select-text pr-2 print:p-0 print:m-0 print:border-none print:shadow-none">
-        
-        {/* Banner Informational inside Preview Panel */}
+      {/* Banner Informational inside Preview Panel */}
+      <div className="xl:col-span-7 space-y-4">
         <div className="bg-slate-800 text-white p-4 rounded-xl border border-slate-700 flex justify-between items-center print:hidden">
           <div>
             <span className="text-[10px] tracking-widest font-bold uppercase text-teal-400 block mb-0.5">Live Interactive Report preview</span>
@@ -1425,343 +1488,344 @@ export default function OfficialPAKReport({
           </div>
         </div>
 
-        {/* PAGE 1 CANVAS */}
-        <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif">
-          {renderGovHeader()}
-          
-          <div className="text-center font-serif py-1">
-            <h1 className="text-[12px] font-bold leading-none tracking-widest uppercase text-black underline">KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT</h1>
-            <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratKonversi || "___________________________"}</p>
-          </div>
+        {/* Virtual F4 Canvas Stack (7 cols) */}
+        <div id="pak-print-pages" className="space-y-8 select-text pr-2 print:p-0 print:m-0 print:border-none print:shadow-none">
 
-          <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
-            <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
-            <span>Periode: {formattedPeriode}</span>
-          </div>
-
-          {renderPersonalTable()}
-
-          {/* Page 1 Centerpiece Table: "KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT" */}
-          <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
-            <div className="bg-slate-100 font-bold text-center border-b border-black py-1 select-none tracking-wider text-[10px] uppercase">
-              Konversi Predikat Kinerja ke Angka Kredit
-            </div>
+          {/* PAGE 1 CANVAS */}
+          <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif">
+            {renderGovHeader()}
             
-            <table className="w-full text-center border-collapse text-[10px]">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
-                  <th className="py-2 px-2 border-r border-black w-[50%]" colSpan={2}>Hasil Penilaian Kinerja</th>
-                  <th className="py-2 px-2 border-r border-black w-[25%]" rowSpan={2}>Koefisien per tahun</th>
-                  <th className="py-2 px-2 w-[25%]" rowSpan={2}>Angka Kredit yang didapat<br/><span className="text-[8px] font-normal font-mono normal-case">(Kolom 2 x kolom 3)</span></th>
-                </tr>
-                <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
-                  <th className="py-1 px-1 border-r border-black w-[25%] border-b-none">PREDIKAT</th>
-                  <th className="py-1 px-1 border-r border-black w-[25%] border-b-none">PROSENTASE</th>
-                </tr>
-                <tr className="border-b border-black select-none text-[8.5px] font-mono font-bold bg-slate-100">
-                  <td className="py-0.5 px-1 border-r border-black">1</td>
-                  <td className="py-0.5 px-1 border-r border-black">2</td>
-                  <td className="py-0.5 px-1 border-r border-black">3</td>
-                  <td className="py-0.5 px-1">4</td>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="font-semibold text-center h-14">
-                  <td className="py-2 px-2 border-r border-black font-bold underline">
-                    {latestEval ? latestEval.rating.toUpperCase() : "BAIK"}
-                  </td>
-                  <td className="py-2 px-2 border-r border-black font-mono font-bold">
-                    {latestEval ? (latestEval.multiplier * 100).toFixed(2).replace('.', ',') : "100,00"}%
-                  </td>
-                  <td className="py-2 px-2 border-r border-black font-mono font-bold text-slate-800">
-                    {latestEval ? latestEval.coefficient : "12.5"}
-                  </td>
-                  <td className="py-2 px-2 font-mono font-extrabold text-[12px] bg-emerald-50/20 text-emerald-950">
-                    {latestEval ? (latestEval.creditEarned).toFixed(3) : "12,500"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {renderSignatureBlock()}
-          
-          <span className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 1 dari 3</span>
-        </div>
-
-        {/* PAGE 2 CANVAS */}
-        <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif page-break-before">
-          {renderGovHeader()}
-          
-          <div className="text-center font-serif py-1">
-            <h1 className="text-xs font-bold leading-none tracking-widest uppercase text-black underline">AKUMULASI ANGKA KREDIT</h1>
-            <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratAkumulasi || "___________________________"}</p>
-          </div>
-
-          <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
-            <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
-            <span>Periode: {formattedPeriode}</span>
-          </div>
-
-          {renderPersonalTable()}
-
-          {/* Page 2 centerpiece table: Accumulation over years */}
-          <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
-            <div className="bg-slate-100 font-bold text-center border-b border-black py-1 select-none tracking-wider text-[10px] uppercase">
-              Hasil Penilalan Angka Kredit
+            <div className="text-center font-serif py-1">
+              <h1 className="text-[12px] font-bold leading-none tracking-widest uppercase text-black underline">KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT</h1>
+              <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratKonversi || "___________________________"}</p>
             </div>
+
+            <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
+              <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
+              <span>Periode: {formattedPeriode}</span>
+            </div>
+
+            {renderPersonalTable()}
+
+            {/* Page 1 Centerpiece Table: "KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT" */}
+            <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
+              <div className="bg-slate-100 font-bold text-center border-b border-black py-1.5 select-none tracking-wider text-[10px] uppercase">
+                Konversi Predikat Kinerja ke Angka Kredit
+              </div>
+              
+              <table className="w-full text-center border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
+                    <th className="py-2.5 px-3 border-r border-black w-[50%] align-middle" colSpan={2}>Hasil Penilaian Kinerja</th>
+                    <th className="py-2.5 px-3 border-r border-black w-[25%] align-middle" rowSpan={2}>Koefisien per tahun</th>
+                    <th className="py-2.5 px-3 w-[25%] align-middle" rowSpan={2}>Angka Kredit yang didapat<br/><span className="text-[8px] font-normal font-mono normal-case">(Kolom 2 x kolom 3)</span></th>
+                  </tr>
+                  <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
+                    <th className="py-1.5 px-2 border-r border-black w-[25%] border-b-none align-middle">PREDIKAT</th>
+                    <th className="py-1.5 px-2 border-r border-black w-[25%] border-b-none align-middle">PROSENTASE</th>
+                  </tr>
+                  <tr className="border-b border-black select-none text-[8.5px] font-mono font-bold bg-slate-100">
+                    <td className="py-1 px-2 border-r border-black align-middle">1</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">2</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">3</td>
+                    <td className="py-1 px-2 align-middle">4</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="font-semibold text-center h-14">
+                    <td className="py-3 px-3 border-r border-black font-bold underline align-middle">
+                      {latestEval ? latestEval.rating.toUpperCase() : "BAIK"}
+                    </td>
+                    <td className="py-3 px-3 border-r border-black font-mono font-bold align-middle">
+                      {latestEval ? (latestEval.multiplier * 100).toFixed(2).replace('.', ',') : "100,00"}%
+                    </td>
+                    <td className="py-3 px-3 border-r border-black font-mono font-bold text-slate-800 align-middle">
+                      {latestEval ? latestEval.coefficient : "12.5"}
+                    </td>
+                    <td className="py-3 px-3 font-mono font-extrabold text-[12px] bg-emerald-50/20 text-emerald-950 align-middle">
+                      {latestEval ? (latestEval.creditEarned).toFixed(3) : "12,500"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {renderSignatureBlock()}
             
-            <table className="w-full text-center border-collapse text-[10px]">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
-                  <th className="py-2 px-1 border-r border-black w-[10%]">TAHUN</th>
-                  <th className="py-2 px-1 border-r border-black w-[25%]">PERIODIK (BULAN)</th>
-                  <th className="py-2 px-1 border-r border-black w-[15%]">PREDIKAT</th>
-                  <th className="py-2 px-1 border-r border-black w-[15%]">PROSENTASE</th>
-                  <th className="py-2 px-1 border-r border-black w-[15%]">Koefisien per tahun</th>
-                  <th className="py-2 px-1 w-[20%]">Angka Kredit yang didapat</th>
-                </tr>
-                <tr className="border-b border-black select-none text-[8.5px] font-mono font-bold bg-slate-100">
-                  <td className="py-0.5 px-1 border-r border-black">1</td>
-                  <td className="py-0.5 px-1 border-r border-black">2</td>
-                  <td className="py-0.5 px-1 border-r border-black">3</td>
-                  <td className="py-0.5 px-1 border-r border-black">4</td>
-                  <td className="py-0.5 px-1 border-r border-black">5</td>
-                  <td className="py-0.5 px-1">6</td>
-                </tr>
-              </thead>
-              <tbody>
-                {/* PAK Integrasi 2022 Conditional Row */}
-                {(profile.akIntegrasi2022 || 0) > 0 && (
-                  <tr className="border-b border-black font-serif font-medium h-10">
-                    <td className="py-1 px-1 border-r border-black font-mono font-bold">2022</td>
-                    <td className="py-1 px-2 border-r border-black leading-tight text-[9px]">
-                      s.d. Desember
-                    </td>
-                    <td className="py-1 px-1 border-r border-black font-sans font-medium text-center text-slate-500">-</td>
-                    <td className="py-1 px-1 border-r border-black font-mono text-center text-slate-500">-</td>
-                    <td className="py-1 px-1 border-r border-black font-mono text-center text-slate-500">-</td>
-                    <td className="py-1 px-2 text-right font-mono font-extrabold pr-4 text-[10.5px]">
-                      {(profile.akIntegrasi2022 || 0).toFixed(3).replace('.', ',')}
-                    </td>
-                  </tr>
-                )}
-
-                {sortedEvaluationsChrono.map((item, index) => (
-                  <tr key={index} className="border-b border-black font-serif font-medium h-10">
-                    <td className="py-1 px-1 border-r border-black font-mono font-bold">{item.year}</td>
-                    <td className="py-1 px-2 border-r border-black leading-tight text-[9px]">
-                      {item.notes || (item.period === 'Tahunan' ? 'Januari s.d Desember' : item.period)}
-                    </td>
-                    <td className="py-1 px-1 border-r border-black font-bold">{item.rating}</td>
-                    <td className="py-1 px-1 border-r border-black font-mono">{(item.multiplier * 100).toFixed(0)}%</td>
-                    <td className="py-1 px-1 border-r border-black font-mono">{item.coefficient}</td>
-                    <td className="py-1 px-2 text-right font-mono font-extrabold pr-4 text-[10.5px]">
-                      {item.creditEarned.toFixed(3).replace('.', ',')}
-                    </td>
-                  </tr>
-                ))}
-                
-                {evaluations.length === 0 && (
-                  <tr className="border-b border-black">
-                    <td colSpan={6} className="py-6 text-center text-slate-400 font-sans italic">
-                      Belum ada evaluasi SKP tercatat untuk riwayat ini.
-                    </td>
-                  </tr>
-                )}
-
-                {/* Total merged row */}
-                <tr className="bg-slate-100 font-bold font-serif text-[10px]">
-                  <td className="py-2 px-2 border-r border-black uppercase text-left pl-4" colSpan={5}>
-                    JUMLAH ANGKA KREDIT YANG DIPEROLEH
-                  </td>
-                  <td className="py-2 px-2 text-right font-mono font-black pr-4 text-[11.5px] bg-emerald-50/20 text-emerald-950">
-                    {totalKonversi.toFixed(3).replace('.', ',')}
-                  </td>
-                </tr>
-
-              </tbody>
-            </table>
+            <span data-html2canvas-ignore="true" className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 1 dari 3</span>
           </div>
 
-          {renderSignatureBlock()}
-          
-          <span className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 2 dari 3</span>
+          {/* PAGE 2 CANVAS */}
+          <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif page-break-before">
+            {renderGovHeader()}
+            
+            <div className="text-center font-serif py-1">
+              <h1 className="text-xs font-bold leading-none tracking-widest uppercase text-black underline">AKUMULASI ANGKA KREDIT</h1>
+              <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratAkumulasi || "___________________________"}</p>
+            </div>
+
+            <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
+              <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
+              <span>Periode: {formattedPeriode}</span>
+            </div>
+
+            {renderPersonalTable()}
+
+            {/* Page 2 centerpiece table: Accumulation over years */}
+            <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
+              <div className="bg-slate-100 font-bold text-center border-b border-black py-1.5 select-none tracking-wider text-[10px] uppercase">
+                Hasil Penilalan Angka Kredit
+              </div>
+              
+              <table className="w-full text-center border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-black font-bold select-none text-[9px] uppercase">
+                    <th className="py-2.5 px-2 border-r border-black w-[10%] align-middle">TAHUN</th>
+                    <th className="py-2.5 px-3 border-r border-black w-[25%] align-middle">PERIODIK (BULAN)</th>
+                    <th className="py-2.5 px-2 border-r border-black w-[15%] align-middle">PREDIKAT</th>
+                    <th className="py-2.5 px-2 border-r border-black w-[15%] align-middle">PROSENTASE</th>
+                    <th className="py-2.5 px-2 border-r border-black w-[15%] align-middle">Koefisien per tahun</th>
+                    <th className="py-2.5 px-3 w-[20%] align-middle">Angka Kredit yang didapat</th>
+                  </tr>
+                  <tr className="border-b border-black select-none text-[8.5px] font-mono font-bold bg-slate-100">
+                    <td className="py-1 px-2 border-r border-black align-middle">1</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">2</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">3</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">4</td>
+                    <td className="py-1 px-2 border-r border-black align-middle">5</td>
+                    <td className="py-1 px-2 align-middle">6</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* PAK Integrasi 2022 Conditional Row */}
+                  {(profile.akIntegrasi2022 || 0) > 0 && (
+                    <tr className="border-b border-black font-serif font-medium">
+                      <td className="py-2 px-2 border-r border-black font-mono font-bold align-middle">2022</td>
+                      <td className="py-2 px-3 border-r border-black leading-tight text-[9px] align-middle text-left">
+                        s.d. Desember
+                      </td>
+                      <td className="py-2 px-2 border-r border-black font-sans font-medium text-center text-slate-500 align-middle">-</td>
+                      <td className="py-2 px-2 border-r border-black font-mono text-center text-slate-500 align-middle">-</td>
+                      <td className="py-2 px-2 border-r border-black font-mono text-center text-slate-500 align-middle">-</td>
+                      <td className="py-2 px-3 text-right font-mono font-extrabold pr-4 text-[10.5px] align-middle">
+                        {(profile.akIntegrasi2022 || 0).toFixed(3).replace('.', ',')}
+                      </td>
+                    </tr>
+                  )}
+
+                  {sortedEvaluationsChrono.map((item, index) => (
+                    <tr key={index} className="border-b border-black font-serif font-medium">
+                      <td className="py-2 px-2 border-r border-black font-mono font-bold align-middle">{item.year}</td>
+                      <td className="py-2 px-3 border-r border-black leading-tight text-[9px] align-middle text-left">
+                        {item.notes || (item.period === 'Tahunan' ? 'Januari s.d Desember' : item.period)}
+                      </td>
+                      <td className="py-2 px-2 border-r border-black font-bold align-middle">{item.rating}</td>
+                      <td className="py-2 px-2 border-r border-black font-mono align-middle">{(item.multiplier * 100).toFixed(0)}%</td>
+                      <td className="py-2 px-2 border-r border-black font-mono align-middle">{item.coefficient}</td>
+                      <td className="py-2 px-3 text-right font-mono font-extrabold pr-4 text-[10.5px] align-middle">
+                        {item.creditEarned.toFixed(3).replace('.', ',')}
+                      </td>
+                    </tr>
+                  ))}
+                  
+                  {evaluations.length === 0 && (
+                    <tr className="border-b border-black">
+                      <td colSpan={6} className="py-6 text-center text-slate-400 font-sans italic align-middle">
+                        Belum ada evaluasi SKP tercatat untuk riwayat ini.
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Total merged row */}
+                  <tr className="bg-slate-100 font-bold font-serif text-[10px]">
+                    <td className="py-2.5 px-3 border-r border-black uppercase text-left pl-4 align-middle" colSpan={5}>
+                      JUMLAH ANGKA KREDIT YANG DIPEROLEH
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black pr-4 text-[11.5px] bg-emerald-50/20 text-emerald-950 align-middle">
+                      {totalKonversi.toFixed(3).replace('.', ',')}
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+
+            {renderSignatureBlock()}
+            
+            <span data-html2canvas-ignore="true" className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 2 dari 3</span>
+          </div>
+
+          {/* PAGE 3 CANVAS */}
+          <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif page-break-before">
+            {renderGovHeader()}
+            
+            <div className="text-center font-serif py-1">
+              <h1 className="text-xs font-bold leading-none tracking-widest uppercase text-black underline">PENETAPAN ANGKA KREDIT</h1>
+              <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratPenetapan || "___________________________"}</p>
+            </div>
+
+            <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
+              <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
+              <span>Periode: {formattedPeriode}</span>
+            </div>
+
+            {/* Personal Details Table */}
+            {renderPersonalTable()}
+
+            {/* Section II: "PENETAPAN ANGKA KREDIT" table */}
+            <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
+              <table className="w-full border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-slate-100 font-bold border-b border-black text-center text-[9px] uppercase">
+                    <th className="py-2 px-2 w-[4%] border-r border-black select-none align-middle">II</th>
+                    <th className="py-2 px-3 w-[36%] border-r border-black text-left align-middle">PENETAPAN ANGKA KREDIT</th>
+                    <th className="py-2 px-2 w-[15%] border-r border-black align-middle">LAMA</th>
+                    <th className="py-2 px-2 w-[15%] border-r border-black align-middle">BARU</th>
+                    <th className="py-2 px-2 w-[15%] border-r border-black align-middle">JUMLAH</th>
+                    <th className="py-2 px-2 w-[15%] align-middle">KETERANGAN</th>
+                  </tr>
+                  <tr className="border-b border-black select-none text-[8px] font-mono font-bold bg-slate-150 text-center">
+                    <td className="py-1 px-1 border-r border-black align-middle">1</td>
+                    <td className="py-1 px-2 border-r border-black text-left align-middle">2</td>
+                    <td className="py-1 px-1 border-r border-black align-middle">3</td>
+                    <td className="py-1 px-1 border-r border-black align-middle">4</td>
+                    <td className="py-1 px-1 border-r border-black align-middle">5</td>
+                    <td className="py-1 px-1 align-middle">6</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-black text-slate-500 font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">1</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] text-slate-800 align-middle">AK DASAR YANG DIBERIKAN</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+                  <tr className="border-b border-black text-slate-500 font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">2</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] text-slate-800 align-middle">AK JF LAMA</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+                  <tr className="border-b border-black text-slate-500 font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">3</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] text-slate-800 align-middle">AK PENYESUAIAN / PENYETARAAN</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+                  <tr className="border-b border-black font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center text-slate-500 align-middle">4</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] font-bold text-slate-800 align-middle">AK KONVERSI</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 text-[11px] align-middle">{konversiLama.toFixed(3).replace('.', ',')}</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 font-semibold text-[11px] align-middle">{konversiBaru.toFixed(3).replace('.', ',')}</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 font-bold text-[11px] align-middle">{konversiJumlah.toFixed(3).replace('.', ',')}</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+                  <tr className="border-b border-black font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center text-slate-500 align-middle">5</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] text-slate-800 align-middle">AK YANG DIPEROLEH DARI PENINGKATAN PENDIDIKAN</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 text-[11px] align-middle">{pendidikanLama > 0 ? pendidikanLama.toFixed(3).replace('.', ',') : "-"}</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 font-semibold text-[11px] align-middle">{pendidikanBaru > 0 ? pendidikanBaru.toFixed(3).replace('.', ',') : "-"}</td>
+                    <td className="py-1.5 px-3 border-r border-black text-right pr-3 font-semibold text-[11px] align-middle">{pendidikanJumlah > 0 ? pendidikanJumlah.toFixed(3).replace('.', ',') : "-"}</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+                  <tr className="border-b border-black text-slate-500 font-mono text-[11px]">
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">6</td>
+                    <td className="py-1.5 px-3 border-r border-black font-serif text-[11px] text-slate-800 align-middle">AK YANG DIPEROLEH DARI KENAIKAN PANGKAT LUAR BIASA</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 border-r border-black text-center align-middle">-</td>
+                    <td className="py-1.5 px-2 align-middle"></td>
+                  </tr>
+
+                  {/* Cumulatives Grand Total */}
+                  <tr className="bg-slate-100 font-bold font-serif text-[10px] uppercase">
+                    <td className="py-2.5 px-3 border-r border-black text-left pl-6 align-middle" colSpan={2}>
+                      JUMLAH ANGKA KREDIT KUMULATIF
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-black text-right pr-3 font-mono font-bold text-[10.5px] align-middle">
+                      {accumLama.toFixed(3).replace('.', ',')}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-black text-right pr-3 font-mono font-bold text-[10.5px] align-middle">
+                      {accumBaru.toFixed(3).replace('.', ',')}
+                    </td>
+                    <td className="py-2.5 px-3 border-r border-black text-right pr-3 font-mono font-black text-[12px] bg-emerald-50/20 text-emerald-950 align-middle">
+                      {accumJumlah.toFixed(3).replace('.', ',')}
+                    </td>
+                    <td className="py-2.5 px-2 align-middle"></td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+
+            {/* Lower Grid Panel: Minimun & Deficit Calculation block */}
+            <div className="border border-black text-[10.5px] text-black w-full font-serif my-3 leading-normal font-medium">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 font-bold border-b border-black text-center text-[9px]">
+                    <th className="py-2 px-3 w-[46%] border-r border-black uppercase text-left align-middle">KETERANGAN</th>
+                    <th className="py-2 px-2 w-[27%] border-r border-black uppercase align-middle">PANGKAT</th>
+                    <th className="py-2 px-2 w-[27%] uppercase align-middle">JENJANG JABATAN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                   <tr className="border-b border-black text-center">
+                    <td className="py-2 px-3 text-left font-semibold border-r border-black align-middle">ANGKA KREDIT MINIMAL YANG HARUS DIPENUHI UNTUK KENAIKAN PANGKAT/ JENJANG</td>
+                    <td className="py-2 px-2 border-r border-black font-mono font-bold text-[11px] align-middle">
+                      {minimalPangkat > 0 ? minimalPangkat.toFixed(3).replace('.', ',') : "-"}
+                    </td>
+                    <td className="py-2 px-2 font-mono font-bold text-[11px] align-middle">
+                      {minimalJenjang > 0 ? minimalJenjang.toFixed(3).replace('.', ',') : "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-black text-center">
+                    <td className="py-2 px-3 text-left font-semibold border-r border-black uppercase text-[9.5px] align-middle">
+                      {minimalPangkat > 0 && isPangkatSurplus
+                        ? "KELEBIHAN ANGKA KREDIT YANG DICAPAI UNTUK KENAIKAN PANGKAT"
+                        : "KEKURANGAN ANGKA KREDIT YANG HARUS DICAPAI UNTUK KENAIKAN PANGKAT"}
+                    </td>
+                    <td className={`py-2 px-2 border-r border-black font-mono font-extrabold text-[11px] align-middle ${
+                      isPangkatSurplus ? "bg-emerald-50/10 text-emerald-900" : "bg-amber-55/10 text-amber-900"
+                    }`}>
+                      {minimalPangkat > 0 ? pangkatDiffValue.toFixed(3).replace('.', ',') : "-"}
+                    </td>
+                    <td className="py-2 px-2 font-mono font-semibold text-slate-400 align-middle">-</td>
+                  </tr>
+                  <tr className="border-b border-black text-center">
+                    <td className="py-2 px-3 text-left font-semibold border-r border-black uppercase text-[9.5px] align-middle">
+                       {minimalJenjang > 0 && isJenjangSurplus 
+                        ? "KELEBIHAN ANGKA KREDIT YANG DICAPAI UNTUK KENAIKAN JENJANG" 
+                        : "KEKURANGAN ANGKA KREDIT YANG HARUS DICAPAI UNTUK KENAIKAN JENJANG"}
+                    </td>
+                    <td className="py-2 px-2 font-mono font-semibold text-slate-400 align-middle">-</td>
+                    <td className={`py-2 px-2 font-mono font-extrabold text-[11px] align-middle ${
+                      isJenjangSurplus ? "bg-emerald-50/10 text-emerald-900" : "bg-amber-55/10 text-amber-900"
+                    }`}>
+                      {minimalJenjang > 0 ? jenjangDiffValue.toFixed(3).replace('.', ',') : "-"}
+                    </td>
+                  </tr>
+                  {/* Eligibility final visual status line inside Page 3 table */}
+                  <tr className="bg-slate-50 uppercase text-[10px] font-bold">
+                    <td className="py-3.5 px-4 text-left font-serif leading-relaxed align-middle" colSpan={3}>
+                      {recommendationText}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {renderSignatureBlock()}
+            
+            <span data-html2canvas-ignore="true" className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 3 dari 3</span>
+          </div>
+
         </div>
-
-        {/* PAGE 3 CANVAS */}
-        <div className="bg-white p-10 shadow-md border border-slate-200 rounded-xl relative mx-auto w-full max-w-[215mm] print:shadow-none print:border-none print:bg-white page-break font-serif page-break-before">
-          {renderGovHeader()}
-          
-          <div className="text-center font-serif py-1">
-            <h1 className="text-xs font-bold leading-none tracking-widest uppercase text-black underline">PENETAPAN ANGKA KREDIT</h1>
-            <p className="font-mono text-[10px] text-black uppercase mt-0.5">NOMOR : {profile.nomorSuratPenetapan || "___________________________"}</p>
-          </div>
-
-          <div className="flex justify-between items-center text-[10px] text-black font-semibold uppercase font-serif mt-2 select-none">
-            <span>Instansi : Pemerintah Provinsi Jawa Barat</span>
-            <span>Periode: {formattedPeriode}</span>
-          </div>
-
-          {/* Personal Details Table */}
-          {renderPersonalTable()}
-
-          {/* Section II: "PENETAPAN ANGKA KREDIT" table */}
-          <div className="text-[11px] text-black w-full border border-black font-serif my-4 leading-normal">
-            <table className="w-full border-collapse text-[10px]">
-              <thead>
-                <tr className="bg-slate-100 font-bold border-b border-black text-center text-[9px] uppercase">
-                  <th className="py-1.5 px-2 w-[4%] border-r border-black select-none">II</th>
-                  <th className="py-1.5 px-2 w-[36%] border-r border-black text-left">PENETAPAN ANGKA KREDIT</th>
-                  <th className="py-1.5 px-2 w-[15%] border-r border-black">LAMA</th>
-                  <th className="py-1.5 px-2 w-[15%] border-r border-black">BARU</th>
-                  <th className="py-1.5 px-2 w-[15%] border-r border-black">JUMLAH</th>
-                  <th className="py-1.5 px-2 w-[15%]">KETERANGAN</th>
-                </tr>
-                <tr className="border-b border-black select-none text-[8px] font-mono font-bold bg-slate-150 text-center">
-                  <td className="py-0.5 px-1 border-r border-black">1</td>
-                  <td className="py-0.5 px-1 border-r border-black text-left pl-2">2</td>
-                  <td className="py-0.5 px-1 border-r border-black">3</td>
-                  <td className="py-0.5 px-1 border-r border-black">4</td>
-                  <td className="py-0.5 px-1 border-r border-black">5</td>
-                  <td className="py-0.5 px-1">6</td>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center">1</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK DASAR YANG DIBERIKAN</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center">2</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK JF LAMA</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center">3</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK PENYESUAIAN / PENYETARAAN</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-                <tr className="border-b border-black h-8 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center text-slate-500">4</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] font-bold text-slate-800">AK KONVERSI</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 text-[11px]">{konversiLama.toFixed(3).replace('.', ',')}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{konversiBaru.toFixed(3).replace('.', ',')}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-bold text-[11px]">{konversiJumlah.toFixed(3).replace('.', ',')}</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-                <tr className="border-b border-black h-8 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center text-slate-500">5</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK YANG DIPEROLEH DARI PENINGKATAN PENDIDIKAN</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 text-[11px]">{pendidikanLama > 0 ? pendidikanLama.toFixed(3).replace('.', ',') : "-"}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{pendidikanBaru > 0 ? pendidikanBaru.toFixed(3).replace('.', ',') : "-"}</td>
-                  <td className="py-1 px-2 border-r border-black text-right pr-3 font-semibold text-[11px]">{pendidikanJumlah > 0 ? pendidikanJumlah.toFixed(3).replace('.', ',') : "-"}</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-                <tr className="border-b border-black h-8 text-slate-500 font-mono text-[11px]">
-                  <td className="py-1 px-2 border-r border-black text-center">6</td>
-                  <td className="py-1 px-2 border-r border-black font-serif text-[11px] text-slate-800">AK YANG DIPEROLEH DARI KENAIKAN PANGKAT LUAR BIASA</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-1 border-r border-black text-center">-</td>
-                  <td className="py-1 px-2"></td>
-                </tr>
-
-                {/* Cumulatives Grand Total */}
-                <tr className="bg-slate-100 font-bold font-serif text-[10px] uppercase">
-                  <td className="py-2 px-2 border-r border-black text-left pl-6" colSpan={2}>
-                    JUMLAH ANGKA KREDIT KUMULATIF
-                  </td>
-                  <td className="py-2 px-2 border-r border-black text-right pr-3 font-mono font-bold text-[10.5px]">
-                    {accumLama.toFixed(3).replace('.', ',')}
-                  </td>
-                  <td className="py-2 px-2 border-r border-black text-right pr-3 font-mono font-bold text-[10.5px]">
-                    {accumBaru.toFixed(3).replace('.', ',')}
-                  </td>
-                  <td className="py-2 px-2 border-r border-black text-right pr-3 font-mono font-black text-[12px] bg-emerald-50/20 text-emerald-950">
-                    {accumJumlah.toFixed(3).replace('.', ',')}
-                  </td>
-                  <td className="py-2 px-2"></td>
-                </tr>
-
-              </tbody>
-            </table>
-          </div>
-
-          {/* Lower Grid Panel: Minimun & Deficit Calculation block */}
-          <div className="border border-black text-[10.5px] text-black w-full font-serif my-3 leading-normal font-medium">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 font-bold border-b border-black text-center text-[9px]">
-                  <th className="py-1.5 px-2 w-[46%] border-r border-black uppercase text-left">KETERANGAN</th>
-                  <th className="py-1.5 px-2 w-[27%] border-r border-black uppercase">PANGKAT</th>
-                  <th className="py-1.5 px-2 w-[27%] uppercase">JENJANG JABATAN</th>
-                </tr>
-              </thead>
-              <tbody>
-                 <tr className="border-b border-black text-center">
-                  <td className="py-1.5 px-3 text-left font-semibold border-r border-black">ANGKA KREDIT MINIMAL YANG HARUS DIPENUHI UNTUK KENAIKAN PANGKAT/ JENJANG</td>
-                  <td className="py-1.5 px-2 border-r border-black font-mono font-bold text-[11px]">
-                    {minimalPangkat > 0 ? minimalPangkat.toFixed(3).replace('.', ',') : "-"}
-                  </td>
-                  <td className="py-1.5 px-2 font-mono font-bold text-[11px]">
-                    {minimalJenjang > 0 ? minimalJenjang.toFixed(3).replace('.', ',') : "-"}
-                  </td>
-                </tr>
-                <tr className="border-b border-black text-center">
-                  <td className="py-1.5 px-3 text-left font-semibold border-r border-black uppercase text-[9.5px]">
-                    {minimalPangkat > 0 && isPangkatSurplus
-                      ? "KELEBIHAN ANGKA KREDIT YANG DICAPAI UNTUK KENAIKAN PANGKAT"
-                      : "KEKURANGAN ANGKA KREDIT YANG HARUS DICAPAI UNTUK KENAIKAN PANGKAT"}
-                  </td>
-                  <td className={`py-1.5 px-2 border-r border-black font-mono font-extrabold text-[11px] ${
-                    isPangkatSurplus ? "bg-emerald-50/10 text-emerald-900" : "bg-amber-55/10 text-amber-900"
-                  }`}>
-                    {minimalPangkat > 0 ? pangkatDiffValue.toFixed(3).replace('.', ',') : "-"}
-                  </td>
-                  <td className="py-1.5 px-2 font-mono font-semibold text-slate-400">-</td>
-                </tr>
-                <tr className="border-b border-black text-center">
-                  <td className="py-1.5 px-3 text-left font-semibold border-r border-black uppercase text-[9.5px]">
-                     {minimalJenjang > 0 && isJenjangSurplus 
-                      ? "KELEBIHAN ANGKA KREDIT YANG DICAPAI UNTUK KENAIKAN JENJANG" 
-                      : "KEKURANGAN ANGKA KREDIT YANG HARUS DICAPAI UNTUK KENAIKAN JENJANG"}
-                  </td>
-                  <td className="py-1.5 px-2 font-mono font-semibold text-slate-400">-</td>
-                  <td className={`py-1.5 px-2 font-mono font-extrabold text-[11px] ${
-                    isJenjangSurplus ? "bg-emerald-50/10 text-emerald-900" : "bg-amber-55/10 text-amber-900"
-                  }`}>
-                    {minimalJenjang > 0 ? jenjangDiffValue.toFixed(3).replace('.', ',') : "-"}
-                  </td>
-                </tr>
-                {/* Eligibility final visual status line inside Page 3 table */}
-                <tr className="bg-slate-50 uppercase text-[10px] font-bold">
-                  <td className="py-3 px-4 text-left font-serif leading-tight" colSpan={3}>
-                    {recommendationText}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Under-table note box */}
-          
-
-          {renderSignatureBlock()}
-          
-          <span className="absolute bottom-2 right-4 text-[7px] text-slate-400 font-mono print:hidden">Halaman 3 dari 3</span>
-        </div>
-
       </div>
 
     </div>
