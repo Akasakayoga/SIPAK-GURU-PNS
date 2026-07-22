@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import html2pdf from 'html2pdf.js';
 import { TeacherProfile, SKPEvaluation, KopSettings } from '../types';
 import { SpecimenSVG } from './SpecimenSVG';
 import { GOLONGAN_LIST, getTeacherLevel, GOLONGAN_BASE_VALS, getMinimalPangkat, getMinimalJenjang } from '../data/golonganData';
@@ -179,56 +180,11 @@ export default function OfficialPAKReport({
 
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const loadHtml2Pdf = (): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      if ((window as any).html2pdf) {
-        resolve((window as any).html2pdf);
-        return;
-      }
-
-      // Try unpkg first as it has high uptime and parses without SRI restrictions in iframes
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js';
-      
-      script.onload = () => {
-        if ((window as any).html2pdf) {
-          resolve((window as any).html2pdf);
-        } else {
-          script.onerror!(new Event('fail_load'));
-        }
-      };
-      
-      script.onerror = () => {
-        // Fallback to cdnjs CDN if unpkg has network blocks
-        const fallbackScript = document.createElement('script');
-        fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        
-        fallbackScript.onload = () => {
-          if ((window as any).html2pdf) {
-            resolve((window as any).html2pdf);
-          } else {
-            fallbackScript.onerror!(new Event('fail_fallback'));
-          }
-        };
-        
-        fallbackScript.onerror = () => {
-          reject(new Error("Gagal mengunduh pustaka PDF (html2pdf.js) karena pembatasan jaringan / CORS di sandbox. Silakan gunakan opsi 'Cetak via Browser' (Simpan sebagai PDF) yang terbukti 100% stabil!"));
-        };
-        
-        document.body.appendChild(fallbackScript);
-      };
-      
-      document.body.appendChild(script);
-    });
-  };
-
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     let iframe: HTMLIFrameElement | null = null;
     
     try {
-      const html2pdf = await loadHtml2Pdf();
-      
       const element = document.getElementById('pak-print-pages');
       if (!element) {
         toast.error("Elemen laporan tidak ditemukan.");
@@ -236,7 +192,7 @@ export default function OfficialPAKReport({
         return;
       }
 
-      toast.info("Sedang mempersiapkan rendering dokumen PAK resmi format F4/Folio...");
+      toast.info("Sedang memproses & mengunduh berkas PDF PAK Resmi format F4/Folio...");
 
       // Create a hidden, off-screen iframe that has standard page dimensions to trigger a high-fidelity paint
       iframe = document.createElement('iframe');
@@ -314,6 +270,7 @@ export default function OfficialPAKReport({
                 width: 215mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                background-color: white !important;
               }
               .page-break {
                 page-break-after: always !important;
@@ -343,33 +300,45 @@ export default function OfficialPAKReport({
       }
 
       const opt = {
-        margin:       [0, 0, 0, 0],
+        margin:       [0, 0, 0, 0] as [number, number, number, number],
         filename:     `PAK_${profile.name.replace(/\s+/g, '_')}_NIP_${profile.nip}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
+        image:        { type: 'jpeg' as const, quality: 0.98 },
         html2canvas:  { 
           scale: 2, 
           useCORS: true, 
           letterRendering: true,
           scrollY: 0,
           scrollX: 0,
-          logging: false
+          logging: false,
+          onclone: (clonedDoc: Document) => {
+            // Strip any remaining oklch variables from inline style or stylesheets in the clone
+            const allNodes = clonedDoc.querySelectorAll('*');
+            allNodes.forEach((node) => {
+              const el = node as HTMLElement;
+              if (el.style && el.style.cssText && el.style.cssText.includes('oklch')) {
+                el.style.cssText = replaceOklchInString(el.style.cssText);
+              }
+            });
+          }
         },
-        jsPDF:        { unit: 'mm', format: [215, 330], orientation: 'portrait' }, // F4 format
+        jsPDF:        { unit: 'mm', format: [215, 330] as [number, number], orientation: 'portrait' as const }, // F4 format
         pagebreak:    { mode: ['css', 'legacy'] }
       };
       
-      await html2pdf().set(opt).from(iframeElement).save();
+      const pdfWorker = html2pdf().set(opt).from(iframeElement);
+      await pdfWorker.save();
+
       swal.fire({
         title: "Dokumen PDF Berhasil Didownload!",
-        text: `Berkas PAK resmi F4/Folio milik Guru PNS "${profile.name}" berhasil di-render dengan rasio skala tajam 2x dan diunduh secara lokal.`,
+        text: `Berkas PAK resmi F4/Folio milik Guru PNS "${profile.name}" berhasil di-render dan diunduh langsung sebagai file PDF.`,
         icon: "success",
         confirmButtonText: "Selesai"
       });
     } catch (error) {
       console.error("Gagal mengunduh PDF:", error);
       swal.fire({
-        title: "Gagal Mengunduh PDF!",
-        text: "Terjadi gangguan rendering grafis: " + (error instanceof Error ? error.message : String(error)),
+        title: "Gagal Mengunduh PDF",
+        text: "Terjadi masalah saat rendering grafis PDF: " + (error instanceof Error ? error.message : String(error)),
         icon: "error"
       });
     } finally {
@@ -743,8 +712,14 @@ export default function OfficialPAKReport({
     </div>
   );
 
-  // Reusable Signatures Block (Jabar Style with ESD QR box)
+  // Reusable Signatures Block (Jabar Style supporting both TTE and TTD Basah)
   const renderSignatureBlock = () => {
+    // Read signature preference
+    const signatureType = profile.signatureType || kopSettings.signatureType || 'tte';
+    const ttdBasahType = profile.ttdBasahType || kopSettings.ttdBasahType || 'blank';
+    const ttdBasahImage = profile.ttdBasahImageBase64 || kopSettings.ttdBasahImageBase64 || profile.ttdBasahImageUrl || kopSettings.ttdBasahImageUrl || '';
+    const ttdBasahHeight = profile.ttdBasahHeight || kopSettings.ttdBasahHeight || 80;
+
     // Read from shared kopSettings, fallback to profile for backward compatibility, then default
     const tteLogoType = kopSettings.tteLogoType || profile.tteLogoType || 'default';
     const tteLogoUrl = kopSettings.tteLogoUrl || profile.tteLogoUrl || '';
@@ -785,45 +760,78 @@ export default function OfficialPAKReport({
             <p className="font-bold uppercase text-[10px]">{profile.pejabatPenilaiInstansi || "PROVINSI JAWA BARAT"}</p>
           </div>
 
-          {/* DISPUSIPDA / BSrE Electronic Signature Specimen Box (Sama Persis dengan Lampiran) */}
-          <div className="mt-3.5 border-[1.5px] border-black rounded-[20px] p-4 flex items-center gap-4 bg-white w-full max-w-[350px]">
-            {/* Left Column: TTD Electronic Logo (Enlarged) */}
-            <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
-              {tteLogoType === 'upload' && tteLogoBase64 ? (
-                <img 
-                  src={tteLogoBase64} 
-                  alt="TTE Logo" 
-                  className="w-18 h-18 object-contain"
-                  style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
-                />
-              ) : tteLogoType === 'url' && tteLogoUrl ? (
-                <img 
-                  src={tteLogoUrl} 
-                  alt="TTE Logo" 
-                  className="w-18 h-18 object-contain"
-                  referrerPolicy="no-referrer"
-                  style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
-                />
-              ) : (
-                <SpecimenSVG className="w-18 h-18 shrink-0 select-none" />
-              )}
-            </div>
+          {signatureType === 'ttd_basah' ? (
+            /* WET SIGNATURE BLOCK (TANDA TANGAN BASAH / SCAN) */
+            <div className="mt-2 w-full max-w-[350px]">
+              <div className="flex items-center justify-center my-1" style={{ minHeight: `${ttdBasahHeight}px` }}>
+                {ttdBasahType === 'upload' && ttdBasahImage ? (
+                  <img 
+                    src={ttdBasahImage} 
+                    alt="Scan TTD Basah & Stempel" 
+                    className="max-h-28 max-w-[240px] object-contain my-1"
+                    style={{ display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ height: `${ttdBasahHeight}px` }} className="w-full flex items-end justify-center">
+                    <span className="text-[9px] text-slate-300 italic print:hidden">(Ruang Tanda Tangan Tinta & Stempel)</span>
+                  </div>
+                )}
+              </div>
 
-            {/* Right Column: Dynamic Specimen Text */}
-            <div className="text-[10px] leading-snug font-sans text-black select-none">
-              <p className="text-slate-800 italic text-[10px] mb-0.5">{tteTextHeader}</p>
-              <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan1}</p>
-              <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan2}</p>
-              
-              <div className="mt-4 font-sans text-[10px]">
-                <p className="font-bold text-black uppercase">{profile.pejabatPenilaiNama || "DWI YANTI ESTRININGRUM, S.Sos., M.Pd."}</p>
-                <p className="text-slate-800">
+              <div className="text-[11px] font-serif leading-tight mt-1">
+                <p className="font-bold text-black uppercase underline decoration-1">
+                  {profile.pejabatPenilaiNama || "DWI YANTI ESTRININGRUM, S.Sos., M.Pd."}
+                </p>
+                <p className="font-bold text-black uppercase">
+                  NIP. {profile.pejabatPenilaiNip || "19730512 199803 2 004"}
+                </p>
+                <p className="text-black">
                   {profile.pejabatPenilaiGolongan || "Pembina Tk.I"}
                   {!(profile.pejabatPenilaiGolongan || "Pembina Tk.I").endsWith('.') ? '.' : ''}
                 </p>
               </div>
             </div>
-          </div>
+          ) : (
+            /* DISPUSIPDA / BSrE Electronic Signature Specimen Box (TTE) */
+            <div className="mt-3.5 border-[1.5px] border-black rounded-[20px] p-4 flex items-center gap-4 bg-white w-full max-w-[350px]">
+              {/* Left Column: TTD Electronic Logo (Enlarged) */}
+              <div className="flex-shrink-0 w-20 h-20 flex items-center justify-center">
+                {tteLogoType === 'upload' && tteLogoBase64 ? (
+                  <img 
+                    src={tteLogoBase64} 
+                    alt="TTE Logo" 
+                    className="w-18 h-18 object-contain"
+                    style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
+                  />
+                ) : tteLogoType === 'url' && tteLogoUrl ? (
+                  <img 
+                    src={tteLogoUrl} 
+                    alt="TTE Logo" 
+                    className="w-18 h-18 object-contain"
+                    referrerPolicy="no-referrer"
+                    style={{ display: 'block', maxHeight: '100%', maxWidth: '100%' }}
+                  />
+                ) : (
+                  <SpecimenSVG className="w-18 h-18 shrink-0 select-none" />
+                )}
+              </div>
+
+              {/* Right Column: Dynamic Specimen Text */}
+              <div className="text-[10px] leading-snug font-sans text-black select-none">
+                <p className="text-slate-800 italic text-[10px] mb-0.5">{tteTextHeader}</p>
+                <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan1}</p>
+                <p className="font-bold text-black uppercase text-[10px] tracking-tight">{tteTextJabatan2}</p>
+                
+                <div className="mt-4 font-sans text-[10px]">
+                  <p className="font-bold text-black uppercase">{profile.pejabatPenilaiNama || "DWI YANTI ESTRININGRUM, S.Sos., M.Pd."}</p>
+                  <p className="text-slate-800">
+                    {profile.pejabatPenilaiGolongan || "Pembina Tk.I"}
+                    {!(profile.pejabatPenilaiGolongan || "Pembina Tk.I").endsWith('.') ? '.' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -998,13 +1006,42 @@ export default function OfficialPAKReport({
 
           </div>
 
-          {/* Section 3: Pejabat Penilai Kinerja */}
+          {/* Section 3: Pejabat Penilai Kinerja & Format TTD */}
           <div className="bg-slate-50/50 p-3.5 rounded-lg border border-slate-150 space-y-3">
             <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1">
-              <Mail className="w-3.5 h-3.5" /> 3. Data Pejabat Penilai Kinerja
+              <Mail className="w-3.5 h-3.5" /> 3. Data Pejabat Penilai & Format Tanda Tangan
             </h4>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Signature Type Toggle */}
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">MODE TANDA TANGAN BERKAS</label>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => handleMetaChange('signatureType', 'tte')}
+                  className={`py-1.5 px-2 rounded-md font-bold border transition-all text-center cursor-pointer ${
+                    (profile.signatureType || kopSettings.signatureType || 'tte') === 'tte'
+                      ? 'bg-rose-600 border-rose-700 text-white shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  TTE (Elektronik)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMetaChange('signatureType', 'ttd_basah')}
+                  className={`py-1.5 px-2 rounded-md font-bold border transition-all text-center cursor-pointer ${
+                    (profile.signatureType || kopSettings.signatureType) === 'ttd_basah'
+                      ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  TTD Basah (Manual/Scan)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 mb-0.5">STATUS JABATAN PENILAI</label>
                 <select

@@ -36,7 +36,12 @@ export interface TeacherProfile {
   pejabatPenilaiGolongan?: string;
   pejabatPenilaiStatus?: 'definitif' | 'plt' | 'plh';
 
-  // Custom Electronic Signature (TTE) Settings
+  // Custom Electronic Signature (TTE) & TTD Basah Settings
+  signatureType?: 'tte' | 'ttd_basah';
+  ttdBasahType?: 'blank' | 'upload' | 'url';
+  ttdBasahImageUrl?: string;
+  ttdBasahImageBase64?: string;
+  ttdBasahHeight?: number;
   tteLogoType?: 'default' | 'url' | 'upload';
   tteLogoUrl?: string;
   tteLogoBase64?: string;
@@ -95,6 +100,11 @@ export interface KopSettings {
   row4: string;
   row5: string;
   row6: string;
+  signatureType?: 'tte' | 'ttd_basah';
+  ttdBasahType?: 'blank' | 'upload' | 'url';
+  ttdBasahImageUrl?: string;
+  ttdBasahImageBase64?: string;
+  ttdBasahHeight?: number;
   tteLogoType?: 'default' | 'url' | 'upload';
   tteLogoUrl?: string;
   tteLogoBase64?: string;

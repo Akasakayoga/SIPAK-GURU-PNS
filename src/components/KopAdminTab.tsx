@@ -497,11 +497,11 @@ export default function KopAdminTab({ kopSettings, setKopSettings }: KopAdminTab
       )}
 
       {activeTab === 'tte' && (
-        /* DEDICATED SEPARATE TTE SPECIMEN TAB */
+        /* DEDICATED SEPARATE TTE / TTD BASAH SPECIMEN TAB */
         <div className="bg-white border border-slate-200 rounded-2xl p-6 dark-shadow space-y-6 animate-fadeIn font-sans">
           <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
             <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-rose-500 animate-pulse" /> Menu Khusus: Parameter Pembubuhan Gambar Spesimen TTE (Global)
+              <Sparkles className="w-4 h-4 text-rose-500 animate-pulse" /> Menu Khusus: Parameter Tanda Tangan & Spesimen TTE / TTD Basah
             </span>
             <span className="bg-rose-100 text-rose-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase select-none">
               SINKRON OTOMATIS FIRESTORE
@@ -509,224 +509,412 @@ export default function KopAdminTab({ kopSettings, setKopSettings }: KopAdminTab
           </div>
 
           <p className="text-xs text-slate-500 leading-normal">
-            Formulir ini berfungsi khusus untuk mengunggah logo segel digital (Barcode/QR, Tanda Tangan Basah/TTE) yang dicetak di berkas PAK. Seluruh berkas PAK guru secara otomatis akan mengadaptasi spesimen ini secara dinamis.
+            Pilih jenis tanda tangan resmi yang digunakan untuk berkas PAK Guru. Anda dapat memilih antara <strong>TTE (Tanda Tangan Elektronik / Segel Digital)</strong> atau <strong>TTD Basah (Manual / Scan Stempel)</strong>.
           </p>
+
+          {/* PILIHAN MODE TANDA TANGAN (TTE VS TTD BASAH) */}
+          <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-3">
+            <label className="block text-[11px] font-black text-amber-400 uppercase tracking-wider">
+              1. PILIH JENIS TANDA TANGAN DOKUMEN PAK
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setKopSettings({ ...kopSettings, signatureType: 'tte' })}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  (kopSettings.signatureType || 'tte') === 'tte'
+                    ? 'bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-950/40 ring-2 ring-rose-400/50'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                  (kopSettings.signatureType || 'tte') === 'tte' ? 'bg-white text-rose-600' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  TTE
+                </div>
+                <div>
+                  <span className="block text-xs font-black uppercase">TTE (Tanda Tangan Elektronik)</span>
+                  <span className="text-[10px] text-slate-300 block leading-tight mt-0.5">
+                    Menggunakan segel digital BSrE / QR Barcode verifikasi resmi
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKopSettings({ ...kopSettings, signatureType: 'ttd_basah' })}
+                className={`p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
+                  kopSettings.signatureType === 'ttd_basah'
+                    ? 'bg-teal-600 border-teal-400 text-white shadow-lg shadow-teal-950/40 ring-2 ring-teal-400/50'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                  kopSettings.signatureType === 'ttd_basah' ? 'bg-white text-teal-600' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  TTD
+                </div>
+                <div>
+                  <span className="block text-xs font-black uppercase">TTD Basah (Manual / Scan Stempel)</span>
+                  <span className="text-[10px] text-slate-300 block leading-tight mt-0.5">
+                    Garis nama/NIP pejabat untuk TTD tinta basah & stempel fisik atau scan
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Left side: parameters (8 cols) */}
             <div className="lg:col-span-8 space-y-5 text-slate-750 font-sans">
               
-              {/* SINKRONISASI JABATAN & UNIT KERJA SECARA OTOMATIS */}
-              <div className="bg-teal-50 border border-teal-200 p-4 rounded-xl space-y-3">
-                <div className="flex items-start gap-2.5">
-                  <input
-                    id="auto-pejabat-sync"
-                    type="checkbox"
-                    checked={isTteAutoSync}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setKopSettings({
-                          ...kopSettings,
-                          tteTextJabatan1: '',
-                          tteTextJabatan2: ''
-                        });
-                      } else {
-                        setKopSettings({
-                          ...kopSettings,
-                          tteTextJabatan1: 'KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII',
-                          tteTextJabatan2: 'PROVINSI JAWA BARAT'
-                        });
-                      }
-                    }}
-                    className="w-4.5 h-4.5 text-teal-600 border-slate-300 rounded focus:ring-teal-500 cursor-pointer mt-0.5"
-                  />
-                  <div className="space-y-1">
-                    <label htmlFor="auto-pejabat-sync" className="block text-[11px] font-black text-teal-950 uppercase tracking-wider cursor-pointer">
-                      SINKRONISASI JABATAN & NAMA UNIT KERJA PEJABAT SECARA OTOMATIS (REKOMENDASI)
-                    </label>
-                    <p className="text-[10px] text-teal-800 leading-relaxed font-semibold">
-                      Harap centang ini agar data Jabatan dan Unit Kerja serta Nama pejabat penilai langsung disalin secara cerdas dari form "DATA PEJABAT PENILAI" masing-masing Guru. Anda tidak perlu mengetik ulang secara manual!
-                    </p>
-                    {isTteAutoSync && (
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-[9px] font-bold mt-1 uppercase">
-                        ✓ Fitur Otomatis Aktif (Menyalin Nama Jabatan & Unit Kerja secara Real-time)
-                      </div>
-                    )}
+              {/* IF TTD BASAH SELECTED */}
+              {kopSettings.signatureType === 'ttd_basah' ? (
+                <div className="bg-teal-50 border border-teal-200 p-4.5 rounded-2xl space-y-4 animate-fadeIn">
+                  <div className="border-b border-teal-200/80 pb-2 flex justify-between items-center">
+                    <span className="text-xs font-black text-teal-950 uppercase tracking-wider">
+                      PARAMETER TANDA TANGAN BASAH / MANUAL
+                    </span>
+                    <span className="bg-teal-200 text-teal-900 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                      SETTING TTD BASAH
+                    </span>
                   </div>
-                </div>
-              </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TIPE LOGO SPESIMEN TTE</label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'default' })}
-                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
-                        (kopSettings.tteLogoType || 'default') === 'default'
-                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Bawaan (Digital)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'url' })}
-                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
-                        kopSettings.tteLogoType === 'url'
-                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      URL Gambar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'upload' })}
-                      className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
-                        kopSettings.tteLogoType === 'upload'
-                          ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      Unggah File
-                    </button>
-                  </div>
-                </div>
-
-                {/* Conditional inputs */}
-                {kopSettings.tteLogoType === 'url' && (
+                  {/* Mode TTD Basah: Blank Space vs Upload Scan */}
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">URL LOGO TTE KUSTOM</label>
-                    <input
-                      type="url"
-                      value={kopSettings.tteLogoUrl || ''}
-                      onChange={e => setKopSettings({ ...kopSettings, tteLogoUrl: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 focus:outline-teal-500 font-mono"
-                      placeholder="https://example.com/logo-tte.png"
-                    />
+                    <label className="block text-[10px] font-black text-teal-900 uppercase tracking-widest mb-1.5">
+                      MODE HASIL CETAK TTD BASAH
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setKopSettings({ ...kopSettings, ttdBasahType: 'blank' })}
+                        className={`py-2 px-3 rounded-lg text-[11px] font-bold border transition-all text-center cursor-pointer ${
+                          (kopSettings.ttdBasahType || 'blank') === 'blank'
+                            ? 'bg-teal-700 border-teal-800 text-white shadow-xs'
+                            : 'bg-white border-teal-200 text-teal-800 hover:bg-teal-100/50'
+                        }`}
+                      >
+                        Ruang Kosong (Ttd Tinta & Stempel Fisik)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKopSettings({ ...kopSettings, ttdBasahType: 'upload' })}
+                        className={`py-2 px-3 rounded-lg text-[11px] font-bold border transition-all text-center cursor-pointer ${
+                          kopSettings.ttdBasahType === 'upload'
+                            ? 'bg-teal-700 border-teal-800 text-white shadow-xs'
+                            : 'bg-white border-teal-200 text-teal-800 hover:bg-teal-100/50'
+                        }`}
+                      >
+                        Unggah Gambar Scan TTD & Stempel
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                {kopSettings.tteLogoType === 'upload' && (
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">UNGGAH FILE GAMBAR LOGO</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = async () => {
-                            if (typeof reader.result === 'string') {
-                              try {
-                                const compressedObj = await compressLogoImage(reader.result);
-                                setKopSettings({ ...kopSettings, tteLogoBase64: compressedObj });
-                              } catch (err) {
-                                setKopSettings({ ...kopSettings, tteLogoBase64: reader.result });
+                  {kopSettings.ttdBasahType === 'upload' && (
+                    <div className="bg-white p-3.5 rounded-xl border border-teal-200 space-y-2">
+                      <label className="block text-[10px] font-black text-teal-950 uppercase tracking-widest">
+                        UNGGAH SCAN GAMBAR TTD BASAH & STEMPEL (TRANSPARAN / PNG)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                              if (typeof reader.result === 'string') {
+                                try {
+                                  const compressedObj = await compressLogoImage(reader.result);
+                                  setKopSettings({ ...kopSettings, ttdBasahImageBase64: compressedObj });
+                                } catch (err) {
+                                  setKopSettings({ ...kopSettings, ttdBasahImageBase64: reader.result });
+                                }
                               }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="text-xs w-full text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-teal-600 file:text-white hover:file:bg-teal-700 cursor-pointer focus:outline-none"
+                      />
+                      {kopSettings.ttdBasahImageBase64 && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] text-emerald-700 font-bold">✓ Scan TTD & Stempel berhasil diunggah!</span>
+                          <button
+                            type="button"
+                            onClick={() => setKopSettings({ ...kopSettings, ttdBasahImageBase64: '' })}
+                            className="text-[10px] text-rose-600 hover:underline font-bold"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Height control */}
+                  <div>
+                    <label className="block text-[10px] font-black text-teal-900 uppercase tracking-widest mb-1">
+                      TINGGI AREA TANDA TANGAN (PIXEL)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="50"
+                        max="140"
+                        step="5"
+                        value={kopSettings.ttdBasahHeight || 80}
+                        onChange={(e) => setKopSettings({ ...kopSettings, ttdBasahHeight: Number(e.target.value) })}
+                        className="w-full accent-teal-600 cursor-pointer"
+                      />
+                      <span className="text-xs font-mono font-bold text-teal-950 bg-white border border-teal-200 px-2.5 py-1 rounded-lg shrink-0">
+                        {kopSettings.ttdBasahHeight || 80} px
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* TTE SETTINGS IF TTE SELECTED */
+                <div className="space-y-5">
+                  {/* SINKRONISASI JABATAN & UNIT KERJA SECARA OTOMATIS */}
+                  <div className="bg-teal-50 border border-teal-200 p-4 rounded-xl space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        id="auto-pejabat-sync"
+                        type="checkbox"
+                        checked={isTteAutoSync}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setKopSettings({
+                              ...kopSettings,
+                              tteTextJabatan1: '',
+                              tteTextJabatan2: ''
+                            });
+                          } else {
+                            setKopSettings({
+                              ...kopSettings,
+                              tteTextJabatan1: 'KEPALA CABANG DINAS PENDIDIKAN WILAYAH XIII',
+                              tteTextJabatan2: 'PROVINSI JAWA BARAT'
+                            });
+                          }
+                        }}
+                        className="w-4.5 h-4.5 text-teal-600 border-slate-300 rounded focus:ring-teal-500 cursor-pointer mt-0.5"
+                      />
+                      <div className="space-y-1">
+                        <label htmlFor="auto-pejabat-sync" className="block text-[11px] font-black text-teal-950 uppercase tracking-wider cursor-pointer">
+                          SINKRONISASI JABATAN & NAMA UNIT KERJA PEJABAT SECARA OTOMATIS (REKOMENDASI)
+                        </label>
+                        <p className="text-[10px] text-teal-800 leading-relaxed font-semibold">
+                          Harap centang ini agar data Jabatan dan Unit Kerja serta Nama pejabat penilai langsung disalin secara cerdas dari form "DATA PEJABAT PENILAI" masing-masing Guru. Anda tidak perlu mengetik ulang secara manual!
+                        </p>
+                        {isTteAutoSync && (
+                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-[9px] font-bold mt-1 uppercase">
+                            ✓ Fitur Otomatis Aktif (Menyalin Nama Jabatan & Unit Kerja secara Real-time)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TIPE LOGO SPESIMEN TTE</label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'default' })}
+                          className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                            (kopSettings.tteLogoType || 'default') === 'default'
+                              ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Bawaan (Digital)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'url' })}
+                          className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                            kopSettings.tteLogoType === 'url'
+                              ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          URL Gambar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setKopSettings({ ...kopSettings, tteLogoType: 'upload' })}
+                          className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all text-center cursor-pointer ${
+                            kopSettings.tteLogoType === 'upload'
+                              ? 'bg-teal-600 border-teal-700 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Unggah File
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Conditional inputs */}
+                    {kopSettings.tteLogoType === 'url' && (
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">URL LOGO TTE KUSTOM</label>
+                        <input
+                          type="url"
+                          value={kopSettings.tteLogoUrl || ''}
+                          onChange={e => setKopSettings({ ...kopSettings, tteLogoUrl: e.target.value })}
+                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 focus:outline-teal-500 font-mono"
+                          placeholder="https://example.com/logo-tte.png"
+                        />
+                      </div>
+                    )}
+
+                    {kopSettings.tteLogoType === 'upload' && (
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">UNGGAH FILE GAMBAR LOGO</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = async () => {
+                                if (typeof reader.result === 'string') {
+                                  try {
+                                    const compressedObj = await compressLogoImage(reader.result);
+                                    setKopSettings({ ...kopSettings, tteLogoBase64: compressedObj });
+                                  } catch (err) {
+                                    setKopSettings({ ...kopSettings, tteLogoBase64: reader.result });
+                                  }
+                                }
+                              };
+                              reader.readAsDataURL(file);
                             }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer focus:outline-none"
-                    />
-                    {kopSettings.tteLogoBase64 && (
-                      <div className="flex items-center gap-1.5 p-1 bg-white border rounded mt-1">
-                        <span className="text-[9px] text-emerald-600 font-bold">✓ Sudah Terunggah Offline & Cloud!</span>
+                          }}
+                          className="text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer focus:outline-none"
+                        />
+                        {kopSettings.tteLogoBase64 && (
+                          <div className="flex items-center gap-1.5 p-1 bg-white border rounded mt-1">
+                            <span className="text-[9px] text-emerald-600 font-bold">✓ Sudah Terunggah Offline & Cloud!</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-755 font-sans">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS HEADER SPESIMEN</label>
-                  <input
-                    type="text"
-                    value={kopSettings.tteTextHeader || ''}
-                    onChange={e => setKopSettings({ ...kopSettings, tteTextHeader: e.target.value })}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2.5 focus:outline-teal-500"
-                    placeholder="Contoh: Ditandatangani secara elektronik oleh :"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-755 font-sans">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS HEADER SPESIMEN</label>
+                      <input
+                        type="text"
+                        value={kopSettings.tteTextHeader || ''}
+                        onChange={e => setKopSettings({ ...kopSettings, tteTextHeader: e.target.value })}
+                        className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2.5 focus:outline-teal-500"
+                        placeholder="Contoh: Ditandatangani secara elektronik oleh :"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 1</label>
-                  <input
-                    type="text"
-                    disabled={isTteAutoSync}
-                    value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan1 || '')}
-                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan1: e.target.value })}
-                    className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
-                      isTteAutoSync 
-                        ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
-                        : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
-                    }`}
-                    placeholder="Kosongkan untuk menyalin dari jabatan Pejabat Penilai"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 1</label>
+                      <input
+                        type="text"
+                        disabled={isTteAutoSync}
+                        value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan1 || '')}
+                        onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan1: e.target.value })}
+                        className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
+                          isTteAutoSync 
+                            ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
+                            : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
+                        }`}
+                        placeholder="Kosongkan untuk menyalin dari jabatan Pejabat Penilai"
+                      />
+                    </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 2</label>
-                  <input
-                    type="text"
-                    disabled={isTteAutoSync}
-                    value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan2 || '')}
-                    onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan2: e.target.value })}
-                    className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
-                      isTteAutoSync 
-                        ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
-                        : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
-                    }`}
-                    placeholder="Kosongkan untuk menyalin dari instansi / unit-kerja Pejabat Penilai"
-                  />
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">TEKS JABATAN BARIS 2</label>
+                      <input
+                        type="text"
+                        disabled={isTteAutoSync}
+                        value={isTteAutoSync ? '[Menyalin Otomatis Dari Data Pejabat Penilai]' : (kopSettings.tteTextJabatan2 || '')}
+                        onChange={e => setKopSettings({ ...kopSettings, tteTextJabatan2: e.target.value })}
+                        className={`w-full text-xs border rounded-lg p-2.5 font-bold uppercase transition-colors ${
+                          isTteAutoSync 
+                            ? 'bg-slate-100 border-slate-200 text-slate-450 italic cursor-not-allowed'
+                            : 'bg-white border-slate-300 text-slate-900 focus:outline-teal-500'
+                        }`}
+                        placeholder="Kosongkan untuk menyalin dari instansi / unit-kerja Pejabat Penilai"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Right side: live preview (4 cols) */}
             <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 font-sans">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b pb-1.5 w-full text-center">
-                Preview TTE Spesimen Aktif
+                Preview Tanda Tangan Aktif ({kopSettings.signatureType === 'ttd_basah' ? 'TTD Basah' : 'TTE Elektronik'})
               </span>
 
-              <div className="border border-slate-300 rounded-xl p-3 bg-white shadow-xs max-w-[280px] w-full flex flex-col items-center select-none text-center">
-                <span className="text-[8px] font-bold text-slate-400 block mb-2 uppercase tracking-wide">Lembar TTE PAK</span>
+              <div className="border border-slate-300 rounded-xl p-4 bg-white shadow-xs max-w-[290px] w-full flex flex-col items-center select-none text-center">
+                <span className="text-[8px] font-bold text-slate-400 block mb-2 uppercase tracking-wide">
+                  Lembar Tanda Tangan PAK
+                </span>
                 
-                <div className="border-[1.5px] border-black rounded-[15px] p-2.5 flex items-center gap-2 bg-white w-full">
-                  {/* Logo Frame */}
-                  <div className="w-16 h-16 flex-shrink-0 flex items-center justify-center border rounded-lg bg-slate-50 overflow-hidden">
-                    {kopSettings.tteLogoType === 'upload' && kopSettings.tteLogoBase64 ? (
-                      <img src={kopSettings.tteLogoBase64} className="max-w-full max-h-full object-contain" />
-                    ) : kopSettings.tteLogoType === 'url' && kopSettings.tteLogoUrl ? (
-                      <img src={kopSettings.tteLogoUrl} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="text-[8px] text-rose-500 font-black font-mono">TTE</div>
-                    )}
-                  </div>
+                {kopSettings.signatureType === 'ttd_basah' ? (
+                  /* TTD BASAH MOCKUP PREVIEW */
+                  <div className="w-full text-center space-y-2 text-[10px] font-serif border border-dashed border-teal-300 p-3 rounded-lg bg-teal-50/30">
+                    <p className="font-bold text-black uppercase text-[9.5px]">Pejabat Penilai Kinerja</p>
+                    <p className="font-extrabold text-black uppercase text-[9px]">KEPALA CABANG DINAS PENDIDIKAN</p>
+                    
+                    <div className="flex items-center justify-center my-2" style={{ height: `${Math.min(kopSettings.ttdBasahHeight || 80, 90)}px` }}>
+                      {kopSettings.ttdBasahType === 'upload' && kopSettings.ttdBasahImageBase64 ? (
+                        <img src={kopSettings.ttdBasahImageBase64} alt="Scan TTD" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <div className="border border-dashed border-slate-300 p-2 text-[9px] text-slate-400 italic">
+                          (Ruang Tanda Tangan Tinta & Stempel Fisik)
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Text Frame */}
-                  <div className="text-left text-[8px] leading-snug font-sans text-slate-800">
-                    <p className="italic text-slate-650 mb-0.5">{kopSettings.tteTextHeader || 'Ditandatangani secara elektronik oleh :'}</p>
-                    <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
-                      {isTteAutoSync ? 'JABATAN PEJABAT PENILAI' : (kopSettings.tteTextJabatan1 || 'KEPALA CABANG DINAS PENDIDIKAN')}
-                    </p>
-                    <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
-                      {isTteAutoSync ? 'UK / INSTANSI PENILAI' : (kopSettings.tteTextJabatan2 || 'PROVINSI JAWA BARAT')}
-                    </p>
+                    <p className="font-extrabold text-black uppercase text-[10px] underline decoration-1">DWI YANTI ESTRININGRUM, S.Sos., M.Pd.</p>
+                    <p className="font-semibold text-slate-800 text-[9px]">NIP. 19730512 199803 2 004</p>
+                    <p className="text-slate-600 text-[9px]">Pembina Tk.I</p>
                   </div>
-                </div>
+                ) : (
+                  /* TTE MOCKUP PREVIEW */
+                  <div className="border-[1.5px] border-black rounded-[15px] p-2.5 flex items-center gap-2 bg-white w-full">
+                    {/* Logo Frame */}
+                    <div className="w-16 h-16 flex-shrink-0 flex items-center justify-center border rounded-lg bg-slate-50 overflow-hidden">
+                      {kopSettings.tteLogoType === 'upload' && kopSettings.tteLogoBase64 ? (
+                        <img src={kopSettings.tteLogoBase64} className="max-w-full max-h-full object-contain" />
+                      ) : kopSettings.tteLogoType === 'url' && kopSettings.tteLogoUrl ? (
+                        <img src={kopSettings.tteLogoUrl} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="text-[8px] text-rose-500 font-black font-mono">TTE</div>
+                      )}
+                    </div>
+
+                    {/* Text Frame */}
+                    <div className="text-left text-[8px] leading-snug font-sans text-slate-800">
+                      <p className="italic text-slate-650 mb-0.5">{kopSettings.tteTextHeader || 'Ditandatangani secara elektronik oleh :'}</p>
+                      <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
+                        {isTteAutoSync ? 'JABATAN PEJABAT PENILAI' : (kopSettings.tteTextJabatan1 || 'KEPALA CABANG DINAS PENDIDIKAN')}
+                      </p>
+                      <p className="font-extrabold text-black uppercase truncate max-w-[150px]">
+                        {isTteAutoSync ? 'UK / INSTANSI PENILAI' : (kopSettings.tteTextJabatan2 || 'PROVINSI JAWA BARAT')}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="bg-rose-50 text-rose-900 border border-rose-100 rounded-lg p-3 text-[10px] leading-relaxed">
-                <strong>Catatan Sinkronisasi Cloud:</strong> Seluruh berkas spesimen dan logo disimpan secara aman di cloud database Firestore dan didistribusikan ke lembar laporan. Proses upload logo hanya perlu dilakukan sekali saja tanpa kuatir hilang sewaktu melakukan logout!
+                <strong>Catatan Sinkronisasi Cloud:</strong> Seluruh berkas spesimen dan logo disimpan secara aman di cloud database Firestore dan didistribusikan ke lembar laporan. Pengaturan ini berlaku secara otomatis untuk seluruh laporan PAK Guru.
               </div>
             </div>
           </div>
