@@ -1843,7 +1843,7 @@ export default function App() {
               <LogOut className="w-3.5 h-3.5" /> KELUAR PORTAL
             </button>
             <div className="text-center text-[9px] text-slate-500 font-mono tracking-tight leading-tight">
-              SIPAK-GURU Hub v1.5 • 2026<br />Dinas Pendidikan Jabar
+              SIPAK-GURU Hub v1.5 • 2026<br />Cabang Dinas Pendidikan Wilayah XIII
             </div>
           </div>
         </aside>
