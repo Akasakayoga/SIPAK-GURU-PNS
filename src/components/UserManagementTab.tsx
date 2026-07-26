@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Key, Users, School, ShieldAlert, Shield, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Key, Users, School, ShieldAlert, Shield, AlertTriangle, RefreshCw, Edit, X } from "lucide-react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { toast, swal } from "../lib/toast";
@@ -32,6 +32,16 @@ export default function UserManagementTab() {
     displayName: "",
     role: "school_admin" as "super_admin" | "school_admin"
   });
+
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [editForm, setEditForm] = useState({
+    newUsername: "",
+    password: "",
+    school: "",
+    displayName: "",
+    role: "school_admin" as "super_admin" | "school_admin"
+  });
+  const [editErrorMsg, setEditErrorMsg] = useState("");
 
   // Real-time listener for schools
   useEffect(() => {
@@ -135,6 +145,66 @@ export default function UserManagementTab() {
     } catch (err) {
       console.error(err);
       setErrorMsg("Gagal mendaftarkan akun ke database: " + String(err));
+    }
+  };
+
+  const startEditUser = (u: AppUser) => {
+    setEditingUser(u);
+    setEditForm({
+      newUsername: u.username,
+      password: u.password || "",
+      school: u.school,
+      displayName: u.displayName,
+      role: u.role
+    });
+    setEditErrorMsg("");
+    setIsAddingUser(false);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditErrorMsg("");
+
+    const newUName = editForm.newUsername.trim().toLowerCase().replace(/\s+/g, "");
+    if (!newUName || !editForm.password || !editForm.displayName || (editForm.role === 'school_admin' && !editForm.school)) {
+      setEditErrorMsg("Semua field wajib diisi!");
+      return;
+    }
+
+    if (newUName !== editingUser.username && users.some(u => u.username === newUName)) {
+      setEditErrorMsg("Username baru sudah digunakan! Pilih username lain.");
+      return;
+    }
+
+    try {
+      const payload = {
+        username: newUName,
+        password: editForm.password,
+        school: editForm.role === 'super_admin' ? 'ALL' : editForm.school.toUpperCase().trim(),
+        role: editForm.role,
+        displayName: editForm.displayName,
+      };
+
+      if (newUName !== editingUser.username) {
+        await setDoc(doc(db, "app_users", newUName), payload);
+        if (editingUser.username !== "admin") {
+          await deleteDoc(doc(db, "app_users", editingUser.username));
+        }
+      } else {
+        await setDoc(doc(db, "app_users", editingUser.username), payload, { merge: true });
+      }
+
+      swal.fire({
+        title: "Akun Berhasil Diperbarui!",
+        text: `Akun operator "${editForm.displayName}" (${newUName}) telah berhasil diubah dan diselaraskan!`,
+        icon: "success",
+        confirmButtonText: "Selesai"
+      });
+      setEditingUser(null);
+    } catch (err) {
+      console.error(err);
+      setEditErrorMsg("Gagal memperbarui akun: " + String(err));
     }
   };
 
@@ -280,7 +350,16 @@ export default function UserManagementTab() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-1">PASSWORD MANDIRI</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-bold text-slate-500">PASSWORD MANDIRI</label>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, password: "tetapsemangat" })}
+                  className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200 transition-colors cursor-pointer"
+                >
+                  ⚡ Reset Default: tetapsemangat
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="text"
@@ -358,6 +437,133 @@ export default function UserManagementTab() {
         </form>
       )}
 
+      {/* Edit account form */}
+      {editingUser && (
+        <form onSubmit={handleUpdateUser} className="bg-white border-2 border-amber-500 p-6 rounded-2xl shadow-md space-y-4 animate-slideDown">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+            <h3 className="text-sm font-black text-slate-900 uppercase flex items-center gap-2">
+              <Edit className="w-4 h-4 text-amber-600" /> EDIT & RESET AKUN: <span className="text-amber-700 font-mono">{editingUser.username}</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setEditingUser(null)}
+              className="text-xs text-slate-400 hover:text-slate-600 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <X className="w-4 h-4" /> Batal
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">USERNAME (HURUF KECIL, TANPA SPASI)</label>
+              <input
+                type="text"
+                placeholder="Contoh: sman3ciamis"
+                disabled={editingUser.username === 'admin'}
+                value={editForm.newUsername}
+                onChange={e => setEditForm({ ...editForm, newUsername: e.target.value.toLowerCase().replace(/\s+/g, "") })}
+                className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-amber-500 disabled:bg-slate-100 disabled:text-slate-400 font-mono"
+                required
+              />
+              {editingUser.username === 'admin' && (
+                <span className="text-[9px] text-rose-500 font-bold">Username super admin utama tidak dapat diubah</span>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-bold text-slate-500">PASSWORD / RESET PASSWORD</label>
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, password: "tetapsemangat" })}
+                  className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200 transition-colors cursor-pointer"
+                >
+                  ⚡ Reset Default: tetapsemangat
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Contoh: tetapsemangat / password baru..."
+                  value={editForm.password}
+                  onChange={e => setEditForm({ ...editForm, password: e.target.value })}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 pl-9 focus:outline-amber-500 font-mono text-slate-800 font-bold"
+                  required
+                />
+                <Key className="w-4 h-4 text-amber-500 absolute left-3 top-3" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">NAMA OPERATOR / PENGELOLA</label>
+              <input
+                type="text"
+                placeholder="Contoh: Admin SMAN 3 CIAMIS"
+                value={editForm.displayName}
+                onChange={e => setEditForm({ ...editForm, displayName: e.target.value })}
+                className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-amber-500 text-slate-800 font-bold"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">HAK AKSES / ROLE</label>
+              <select
+                disabled={editingUser.username === 'admin'}
+                value={editForm.role}
+                onChange={e => {
+                  const r = e.target.value as "super_admin" | "school_admin";
+                  setEditForm({ ...editForm, role: r, school: r === 'super_admin' ? 'ALL' : "" });
+                }}
+                className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-amber-500 font-bold disabled:bg-slate-100"
+              >
+                <option value="school_admin">Operator Sekolah (Akses Terisolasi)</option>
+                <option value="super_admin">Super Admin (Akses Global Kedinasan)</option>
+              </select>
+            </div>
+
+            {editForm.role === "school_admin" && (
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-bold text-slate-500 mb-1">UNIT KERJA SEKOLAH</label>
+                <select
+                  value={editForm.school}
+                  onChange={e => setEditForm({ ...editForm, school: e.target.value })}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-amber-500 font-bold uppercase"
+                  required={editForm.role === "school_admin"}
+                >
+                  <option value="">-- PILIH SEKOLAH MASTER --</option>
+                  {schools.map(s => (
+                    <option key={s.id} value={s.name}>{s.name} (NPSN: {s.id})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {editErrorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold rounded-lg flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" /> {editErrorMsg}
+            </div>
+          )}
+
+          <div className="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingUser(null)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg cursor-pointer"
+            >
+              BATAL
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg cursor-pointer shadow-xs transition-colors"
+            >
+              SIMPAN PERUBAHAN AKUN
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Accounts tabular view */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="p-5 border-b border-slate-100">
@@ -415,7 +621,14 @@ export default function UserManagementTab() {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-right select-none">
+                    <td className="p-4 text-right select-none flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => startEditUser(u)}
+                        title="Edit Akun & Reset Password"
+                        className="p-1.5 rounded transition-colors text-slate-500 hover:bg-amber-50 hover:text-amber-600 cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => handleDeleteUser(u.username, u.displayName)}
                         disabled={u.username === 'admin'}

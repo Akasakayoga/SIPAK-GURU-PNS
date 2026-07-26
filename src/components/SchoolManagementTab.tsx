@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Edit, Building, MapPin, Search } from "lucide-react";
+import { Plus, Trash2, Edit, Building, MapPin, Search, LayoutGrid, List, Filter } from "lucide-react";
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../firebase";
 import { toast, swal } from "../lib/toast";
@@ -26,7 +26,19 @@ export default function SchoolManagementTab({ userRole, userSchool }: SchoolMana
   const [isAddingSchool, setIsAddingSchool] = useState(false);
   const [editingSchool, setEditingSchool] = useState<School | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filterCity, setFilterCity] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  const uniqueCities = React.useMemo(() => {
+    const citiesSet = new Set<string>();
+    schools.forEach(s => {
+      if (s.city && s.city.trim()) {
+        citiesSet.add(s.city.toUpperCase().trim());
+      }
+    });
+    return Array.from(citiesSet).sort();
+  }, [schools]);
 
   const [form, setForm] = useState({
     npsn: "",
@@ -206,11 +218,15 @@ export default function SchoolManagementTab({ userRole, userSchool }: SchoolMana
     if (userRole === "school_admin" && userSchool) {
       return s.name.toUpperCase().trim() === userSchool.toUpperCase().trim();
     }
+    if (filterCity && s.city?.toUpperCase().trim() !== filterCity) {
+      return false;
+    }
     const q = searchQuery.toLowerCase();
     return (
       s.name.toLowerCase().includes(q) ||
       s.npsn.includes(q) ||
-      s.city?.toLowerCase().includes(q)
+      s.city?.toLowerCase().includes(q) ||
+      s.address?.toLowerCase().includes(q)
     );
   });
 
@@ -396,8 +412,167 @@ export default function SchoolManagementTab({ userRole, userSchool }: SchoolMana
         </form>
       )}
 
-      {/* Grid of schools list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Search & View Toggle Panel */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              placeholder="Cari nama sekolah, NPSN, atau alamat..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-teal-500 focus:bg-white text-slate-800 font-bold"
+            />
+          </div>
+          <div className="relative">
+            <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+            <select
+              value={filterCity}
+              onChange={(e) => setFilterCity(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-teal-500 focus:bg-white text-slate-800 font-bold"
+            >
+              <option value="">Semua Kabupaten / Kota ({uniqueCities.length})</option>
+              {uniqueCities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 self-end md:self-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-white text-teal-700 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+            title="Tampilan Kartu (Grid)"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Kartu</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'list'
+                ? 'bg-white text-teal-700 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+            title="Tampilan Daftar (Tabel)"
+          >
+            <List className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Daftar</span>
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'list' ? (
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 uppercase font-black text-[9px] border-b border-slate-100 select-none">
+                  <th className="p-4">NPSN</th>
+                  <th className="p-4">Nama Sekolah</th>
+                  <th className="p-4">Alamat & Kota</th>
+                  <th className="p-4">Kepala Sekolah Penilai</th>
+                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4 text-right">Opsi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredSchools.map((school) => {
+                  const matchedSchoolName = userSchool ? userSchool.toUpperCase().trim() : "";
+                  const isThisSchoolUser = isSchoolAdmin && school.name.toUpperCase().trim() === matchedSchoolName;
+                  const canUserEdit = userRole === "super_admin" || userRole === "admin" || isThisSchoolUser;
+
+                  return (
+                    <tr key={school.id} className="hover:bg-slate-50/50">
+                      <td className="p-4 font-mono font-bold text-teal-700">
+                        {school.npsn}
+                      </td>
+                      <td className="p-4 font-bold text-slate-900 uppercase">
+                        <div className="flex items-center gap-1.5">
+                          <span>{school.name}</span>
+                          {isThisSchoolUser && (
+                            <span className="bg-teal-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase font-sans animate-pulse">
+                              SAYA
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-slate-600">
+                        {school.address || "-"}
+                        {school.city && <div className="text-[10px] text-slate-400 uppercase font-bold mt-0.5">{school.city}</div>}
+                      </td>
+                      <td className="p-4 text-slate-700">
+                        <div className="font-bold">
+                          {school.principalName
+                            ? `${
+                                school.principalStatus === "plt"
+                                  ? "Plt. "
+                                  : school.principalStatus === "plh"
+                                  ? "Plh. "
+                                  : ""
+                              }${school.principalName}`
+                            : "-"}
+                        </div>
+                        {school.principalNip && <div className="text-[10px] text-slate-400 font-mono">NIP: {school.principalNip}</div>}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          school.principalStatus === "plt" || school.principalStatus === "plh"
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                            : "bg-teal-50 text-teal-800 border border-teal-200"
+                        }`}>
+                          {school.principalStatus || "definitif"}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right select-none">
+                        {canUserEdit && (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEdit(school)}
+                              className="p-1.5 rounded transition-colors text-slate-500 hover:bg-teal-50 hover:text-teal-600 cursor-pointer"
+                              title="Sesuaikan Data Sekolah"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            {(userRole === "super_admin" || userRole === "admin") && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSchool(school)}
+                                className="p-1.5 rounded transition-colors text-slate-400 hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                                title="Hapus Data Sekolah"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredSchools.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400 italic font-medium">
+                      Sekolah tidak ditemukan...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Grid of schools list */
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredSchools.map((school) => {
           const matchedSchoolName = userSchool ? userSchool.toUpperCase().trim() : "";
           const isThisSchoolUser = isSchoolAdmin && school.name.toUpperCase().trim() === matchedSchoolName;
@@ -493,6 +668,7 @@ export default function SchoolManagementTab({ userRole, userSchool }: SchoolMana
           </div>
         )}
       </div>
+      )}
 
       {pendingDelete && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fadeIn text-slate-100">

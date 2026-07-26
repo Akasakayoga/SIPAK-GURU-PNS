@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   SKPEvaluation, 
   SKPPeriod, 
-  SKPRating 
+  SKPRating,
+  TeacherProfile
 } from '../types';
 import { 
   SKP_STANDARD_COEFFICIENT,
@@ -21,24 +22,50 @@ import {
   GraduationCap,
   Cloud,
   Link,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  Printer,
+  ChevronDown,
+  ChevronUp,
+  Save
 } from 'lucide-react';
 
 interface ActivityLogTabProps {
   evaluations: SKPEvaluation[];
   onAddEvaluation: (evalItem: SKPEvaluation) => void;
+  onUpdateEvaluation?: (evalItem: SKPEvaluation) => void;
   onDeleteEvaluation: (id: string) => void;
+  onPrintEvaluation?: (id: string) => void;
   currentGolonganLevel: 'Ahli Pertama' | 'Ahli Muda' | 'Ahli Madya' | 'Ahli Utama';
+  profile?: TeacherProfile;
 }
 
 export default function ActivityLogTab({
   evaluations,
   onAddEvaluation,
+  onUpdateEvaluation,
   onDeleteEvaluation,
-  currentGolonganLevel
+  onPrintEvaluation,
+  currentGolonganLevel,
+  profile
 }: ActivityLogTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPeriod, setFilterPeriod] = useState<string>('all');
+  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showOverrideSection, setShowOverrideSection] = useState(false);
+  const [overrideGolongan, setOverrideGolongan] = useState<any>('');
+  const [overrideUnitKerja, setOverrideUnitKerja] = useState('');
+  const [overrideNomorKonversi, setOverrideNomorKonversi] = useState('');
+  const [overrideNomorAkumulasi, setOverrideNomorAkumulasi] = useState('');
+  const [overrideNomorPenetapan, setOverrideNomorPenetapan] = useState('');
+  const [overrideTempatDitetapkan, setOverrideTempatDitetapkan] = useState('');
+  const [overrideTanggalPenetapan, setOverrideTanggalPenetapan] = useState('');
+  const [overridePejabatTitle, setOverridePejabatTitle] = useState('');
+  const [overridePejabatInstansi, setOverridePejabatInstansi] = useState('');
+  const [overridePejabatNama, setOverridePejabatNama] = useState('');
+  const [overridePejabatNip, setOverridePejabatNip] = useState('');
+  const [overridePejabatGolongan, setOverridePejabatGolongan] = useState('');
   
   // New SKP form states
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1);
@@ -127,11 +154,122 @@ export default function ActivityLogTab({
     }
   }, [calculatedCoeff, calculatedMultiplier, period, isCustomRange, customMonths]);
 
+  const handleStartEdit = (item: SKPEvaluation) => {
+    setEditingId(item.id);
+    setYear(item.year);
+    if (['Tahunan', 'Triwulan I', 'Triwulan II', 'Triwulan III', 'Triwulan IV'].includes(item.period)) {
+      setIsCustomRange(false);
+      setPeriod(item.period);
+    } else {
+      setIsCustomRange(true);
+      setCustomPeriodLabel(item.period);
+      if (item.startDate) setStartDate(item.startDate);
+      if (item.endDate) setEndDate(item.endDate);
+      if (item.customMonths) setCustomMonths(item.customMonths);
+    }
+    setRating(item.rating);
+    setLevel(item.level);
+    setNotes(item.notes || '');
+    setAkPendidikanInput(item.akPendidikan ? String(item.akPendidikan) : '');
+    setSkpFileLink(item.skpFileLink || '');
+    setEvidenceFileLink(item.evidenceFileLink || '');
+    
+    const ov = item.overrideData || {};
+    setOverrideGolongan(ov.currentGolongan || '');
+    setOverrideUnitKerja(ov.unitKerja || '');
+    setOverrideNomorKonversi(ov.nomorSuratKonversi || '');
+    setOverrideNomorAkumulasi(ov.nomorSuratAkumulasi || '');
+    setOverrideNomorPenetapan(ov.nomorSuratPenetapan || '');
+    setOverrideTempatDitetapkan(ov.tempatDitetapkan || '');
+    setOverrideTanggalPenetapan(ov.tanggalPenetapan || '');
+    setOverridePejabatTitle(ov.pejabatPenilaiTitle || '');
+    setOverridePejabatInstansi(ov.pejabatPenilaiInstansi || '');
+    setOverridePejabatNama(ov.pejabatPenilaiNama || '');
+    setOverridePejabatNip(ov.pejabatPenilaiNip || '');
+    setOverridePejabatGolongan(ov.pejabatPenilaiGolongan || '');
+    
+    if (Object.keys(ov).length > 0) {
+      setShowOverrideSection(true);
+    }
+    
+    const formElem = document.getElementById('activity-log-tab');
+    if (formElem) formElem.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setYear(new Date().getFullYear() - 1);
+    setPeriod('Tahunan');
+    setIsCustomRange(false);
+    setRating('Baik');
+    setLevel(currentGolonganLevel);
+    setNotes('');
+    setAkPendidikanInput('');
+    setSkpFileLink('');
+    setEvidenceFileLink('');
+    setOverrideGolongan('');
+    setOverrideUnitKerja('');
+    setOverrideNomorKonversi('');
+    setOverrideNomorAkumulasi('');
+    setOverrideNomorPenetapan('');
+    setOverrideTempatDitetapkan('');
+    setOverrideTanggalPenetapan('');
+    setOverridePejabatTitle('');
+    setOverridePejabatInstansi('');
+    setOverridePejabatNama('');
+    setOverridePejabatNip('');
+    setOverridePejabatGolongan('');
+    setShowOverrideSection(false);
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const finalPeriod = isCustomRange ? customPeriodLabel : period;
     const parsedAkPendidikan = parseFloat(akPendidikanInput) || 0;
+
+    const hasOverride = overrideGolongan || overrideUnitKerja || overrideNomorKonversi || overrideNomorAkumulasi || overrideNomorPenetapan || overrideTempatDitetapkan || overrideTanggalPenetapan || overridePejabatTitle || overridePejabatInstansi || overridePejabatNama || overridePejabatNip || overridePejabatGolongan;
+
+    const overrideObj = hasOverride ? {
+      ...(overrideGolongan ? { currentGolongan: overrideGolongan } : {}),
+      ...(overrideUnitKerja ? { unitKerja: overrideUnitKerja } : {}),
+      ...(overrideNomorKonversi ? { nomorSuratKonversi: overrideNomorKonversi } : {}),
+      ...(overrideNomorAkumulasi ? { nomorSuratAkumulasi: overrideNomorAkumulasi } : {}),
+      ...(overrideNomorPenetapan ? { nomorSuratPenetapan: overrideNomorPenetapan } : {}),
+      ...(overrideTempatDitetapkan ? { tempatDitetapkan: overrideTempatDitetapkan } : {}),
+      ...(overrideTanggalPenetapan ? { tanggalPenetapan: overrideTanggalPenetapan } : {}),
+      ...(overridePejabatTitle ? { pejabatPenilaiTitle: overridePejabatTitle } : {}),
+      ...(overridePejabatInstansi ? { pejabatPenilaiInstansi: overridePejabatInstansi } : {}),
+      ...(overridePejabatNama ? { pejabatPenilaiNama: overridePejabatNama } : {}),
+      ...(overridePejabatNip ? { pejabatPenilaiNip: overridePejabatNip } : {}),
+      ...(overridePejabatGolongan ? { pejabatPenilaiGolongan: overridePejabatGolongan } : {}),
+    } : undefined;
+
+    if (editingId) {
+      if (onUpdateEvaluation) {
+        onUpdateEvaluation({
+          id: editingId,
+          year,
+          period: finalPeriod,
+          rating,
+          level,
+          coefficient: calculatedCoeff,
+          multiplier: calculatedMultiplier,
+          creditEarned: calculatedCredit,
+          akPendidikan: parsedAkPendidikan > 0 ? parsedAkPendidikan : undefined,
+          notes: notes.trim() || undefined,
+          startDate: isCustomRange ? startDate : undefined,
+          endDate: isCustomRange ? endDate : undefined,
+          isCustomRange,
+          customMonths: isCustomRange ? customMonths : undefined,
+          skpFileLink: skpFileLink.trim() || undefined,
+          evidenceFileLink: evidenceFileLink.trim() || undefined,
+          overrideData: overrideObj
+        });
+      }
+      handleCancelEdit();
+      return;
+    }
 
     const newEvaluation: SKPEvaluation = {
       id: Math.random().toString(36).substring(2, 9),
@@ -149,7 +287,8 @@ export default function ActivityLogTab({
       isCustomRange,
       customMonths: isCustomRange ? customMonths : undefined,
       skpFileLink: skpFileLink.trim() || undefined,
-      evidenceFileLink: evidenceFileLink.trim() || undefined
+      evidenceFileLink: evidenceFileLink.trim() || undefined,
+      overrideData: overrideObj
     };
 
     onAddEvaluation(newEvaluation);
@@ -157,6 +296,19 @@ export default function ActivityLogTab({
     setAkPendidikanInput('');
     setSkpFileLink('');
     setEvidenceFileLink('');
+    setOverrideGolongan('');
+    setOverrideUnitKerja('');
+    setOverrideNomorKonversi('');
+    setOverrideNomorAkumulasi('');
+    setOverrideNomorPenetapan('');
+    setOverrideTempatDitetapkan('');
+    setOverrideTanggalPenetapan('');
+    setOverridePejabatTitle('');
+    setOverridePejabatInstansi('');
+    setOverridePejabatNama('');
+    setOverridePejabatNip('');
+    setOverridePejabatGolongan('');
+    setShowOverrideSection(false);
   };
 
   const searchedEvaluations = useMemo(() => {
@@ -177,7 +329,8 @@ export default function ActivityLogTab({
       {/* Logger Input Form (5 cols) */}
       <div className="lg:col-span-5 bg-white rounded-xl shadow-xs border border-slate-200 p-6">
         <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <Plus className="w-5 h-5 text-teal-600" /> Catat Evaluasi E-SKP Baru
+          {editingId ? <Pencil className="w-5 h-5 text-amber-600" /> : <Plus className="w-5 h-5 text-teal-600" />} 
+          {editingId ? `Edit Evaluasi SKP ${year}` : "Catat Evaluasi E-SKP Baru"}
         </h3>
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -393,13 +546,211 @@ export default function ActivityLogTab({
             </div>
           </div>
 
-          <button
-            type="submit"
-            id="add-evaluation-btn"
-            className="w-full flex justify-center items-center gap-1.5 bg-teal-600 hover:bg-teal-750 text-white font-bold text-sm px-4 py-2.5 rounded shadow-xs cursor-pointer transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Tambah Evaluasi SKP
-          </button>
+          {/* Custom PAK Print Metadata Accordion */}
+          <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+            <button
+              type="button"
+              onClick={() => setShowOverrideSection(!showOverrideSection)}
+              className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                Data Khusus Cetak PAK {year} (Opsional)
+              </span>
+              <span className="text-slate-400">
+                {showOverrideSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+            </button>
+            
+            {showOverrideSection && (
+              <div className="p-3 bg-white border-t border-slate-200 space-y-3.5">
+                <div className="p-2 bg-indigo-50/60 border border-indigo-100 rounded text-[10px] text-indigo-900 leading-normal">
+                  💡 <strong>Info:</strong> Isi bagian ini <em>hanya jika</em> Nomor SK, Pejabat Penilai, atau Pangkat Anda pada periode tahun {year} ini <strong>berbeda</strong> dengan Data Personal utama. Saat Anda mencetak PAK khusus untuk tahun ini, data ini yang akan digunakan tanpa mengubah perhitungan Angka Kredit.
+                </div>
+
+                {/* Nomor Surat PAK Khusus */}
+                <div className="space-y-2">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1">1. Nomor Surat Keputusan PAK ({year})</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">No. SK Konversi (Hal 1)</label>
+                      <input
+                        type="text"
+                        value={overrideNomorKonversi}
+                        onChange={e => setOverrideNomorKonversi(e.target.value)}
+                        placeholder={profile?.nomorSuratKonversi || "Misal: 800/123-2024"}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">No. SK Akumulasi (Hal 2)</label>
+                      <input
+                        type="text"
+                        value={overrideNomorAkumulasi}
+                        onChange={e => setOverrideNomorAkumulasi(e.target.value)}
+                        placeholder={profile?.nomorSuratAkumulasi || "Misal: 800/124-2024"}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">No. SK Penetapan (Hal 3)</label>
+                      <input
+                        type="text"
+                        value={overrideNomorPenetapan}
+                        onChange={e => setOverrideNomorPenetapan(e.target.value)}
+                        placeholder={profile?.nomorSuratPenetapan || "Misal: 800/125-2024"}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Tempat Ditetapkan</label>
+                        <input
+                          type="text"
+                          value={overrideTempatDitetapkan}
+                          onChange={e => setOverrideTempatDitetapkan(e.target.value)}
+                          placeholder={profile?.tempatDitetapkan || "Bandung"}
+                          className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Tgl. Penetapan</label>
+                        <input
+                          type="text"
+                          value={overrideTanggalPenetapan}
+                          onChange={e => setOverrideTanggalPenetapan(e.target.value)}
+                          placeholder={profile?.tanggalPenetapan || "02 April 2024"}
+                          className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pejabat Penilai Khusus */}
+                <div className="space-y-2">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1">2. Pejabat Penilai Kinerja ({year})</span>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Nama Pejabat Penilai</label>
+                      <input
+                        type="text"
+                        value={overridePejabatNama}
+                        onChange={e => setOverridePejabatNama(e.target.value)}
+                        placeholder={profile?.pejabatPenilaiNama || "Nama Lengkap & Gelar"}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-semibold"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">NIP Pejabat</label>
+                        <input
+                          type="text"
+                          value={overridePejabatNip}
+                          onChange={e => setOverridePejabatNip(e.target.value)}
+                          placeholder={profile?.pejabatPenilaiNip || "197..."}
+                          className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Pangkat / Golongan</label>
+                        <input
+                          type="text"
+                          value={overridePejabatGolongan}
+                          onChange={e => setOverridePejabatGolongan(e.target.value)}
+                          placeholder={profile?.pejabatPenilaiGolongan || "Pembina Tk.I"}
+                          className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Jabatan Penilai</label>
+                      <input
+                        type="text"
+                        value={overridePejabatTitle}
+                        onChange={e => setOverridePejabatTitle(e.target.value)}
+                        placeholder={profile?.pejabatPenilaiTitle || "KEPALA CABANG DINAS..."}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Instansi Penilai</label>
+                      <input
+                        type="text"
+                        value={overridePejabatInstansi}
+                        onChange={e => setOverridePejabatInstansi(e.target.value)}
+                        placeholder={profile?.pejabatPenilaiInstansi || "PROVINSI JAWA BARAT"}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pangkat & Unit Kerja Pegawai Khusus */}
+                <div className="space-y-2">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1">3. Pangkat / Unit Kerja Pegawai ({year})</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Golongan Ruang</label>
+                      <select
+                        value={overrideGolongan}
+                        onChange={e => setOverrideGolongan(e.target.value)}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                      >
+                        <option value="">(Ikuti Profil Utama)</option>
+                        <option value="III/a">III/a - Penata Muda</option>
+                        <option value="III/b">III/b - Penata Muda Tk.I</option>
+                        <option value="III/c">III/c - Penata</option>
+                        <option value="III/d">III/d - Penata Tk.I</option>
+                        <option value="IV/a">IV/a - Pembina</option>
+                        <option value="IV/b">IV/b - Pembina Tk.I</option>
+                        <option value="IV/c">IV/c - Pembina Utama Muda</option>
+                        <option value="IV/d">IV/d - Pembina Utama Madya</option>
+                        <option value="IV/e">IV/e - Pembina Utama</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-semibold text-slate-600 mb-0.5">Unit Kerja / Sekolah</label>
+                      <input
+                        type="text"
+                        value={overrideUnitKerja}
+                        onChange={e => setOverrideUnitKerja(e.target.value)}
+                        placeholder={profile?.school || "SMAN..."}
+                        className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:outline-teal-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {editingId ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2.5 rounded shadow-xs cursor-pointer transition-colors"
+              >
+                Batal Edit
+              </button>
+              <button
+                type="submit"
+                id="update-evaluation-btn"
+                className="flex-2 flex justify-center items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded shadow-xs cursor-pointer transition-colors"
+              >
+                <Save className="w-4 h-4" /> Simpan Perubahan SKP
+              </button>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              id="add-evaluation-btn"
+              className="w-full flex justify-center items-center gap-1.5 bg-teal-600 hover:bg-teal-750 text-white font-bold text-sm px-4 py-2.5 rounded shadow-xs cursor-pointer transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Tambah Evaluasi SKP
+            </button>
+          )}
         </form>
       </div>
 
@@ -530,14 +881,33 @@ export default function ActivityLogTab({
                           ) : null}
                         </td>
                         <td className="py-3 px-3 text-center font-sans">
-                          <button
-                            onClick={() => onDeleteEvaluation(item.id)}
-                            id={`delete-eval-${item.id}`}
-                            className="p-1 text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-100 rounded transition-colors cursor-pointer"
-                            title="Hapus baris"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleStartEdit(item)}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 rounded transition-colors cursor-pointer"
+                              title="Edit Evaluasi & Lengkapi Data Khusus PAK"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteEvaluation(item.id)}
+                              id={`delete-eval-${item.id}`}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-100 rounded transition-colors cursor-pointer"
+                              title="Hapus baris"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            {onPrintEvaluation && (
+                              <button
+                                onClick={() => onPrintEvaluation(item.id)}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] rounded shadow-xs transition-colors cursor-pointer"
+                                title={`Cetak PAK Khusus Tahun ${item.year}`}
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>Cetak PAK {item.year}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

@@ -54,6 +54,7 @@ import OfficialPAKReport from "./components/OfficialPAKReport";
 import KopAdminTab from "./components/KopAdminTab";
 import UserManagementTab from "./components/UserManagementTab";
 import SchoolManagementTab from "./components/SchoolManagementTab";
+import SearchableSchoolSelect from "./components/SearchableSchoolSelect";
 import LoggingManagementTab from "./components/LoggingManagementTab";
 import { toast, swal } from "./lib/toast";
 
@@ -170,6 +171,7 @@ export default function App() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [evaluations, setEvaluations] = useState<SKPEvaluation[]>([]);
+  const [selectedEvalIdForPrint, setSelectedEvalIdForPrint] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<"dashboard" | "activities" | "calculator" | "regulations" | "pak_report" | "kop_admin" | "user_management">("dashboard");
   const [adminView, setAdminView] = useState<"teachers" | "users" | "kop" | "calculator" | "regulations" | "schools" | "logs">("teachers");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
@@ -526,7 +528,8 @@ export default function App() {
             isCustomRange: evalData.isCustomRange || false,
             customMonths: Number(evalData.customMonths) || 12,
             skpFileLink: evalData.skpFileLink || "",
-            evidenceFileLink: evalData.evidenceFileLink || ""
+            evidenceFileLink: evalData.evidenceFileLink || "",
+            overrideData: evalData.overrideData || undefined
           });
         });
         // Sort newest first
@@ -1191,6 +1194,7 @@ export default function App() {
         customMonths: Number(newEval.customMonths) || 12,
         skpFileLink: newEval.skpFileLink || "",
         evidenceFileLink: newEval.evidenceFileLink || "",
+        overrideData: newEval.overrideData || null,
         createdBy: user.username,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -1209,6 +1213,42 @@ export default function App() {
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `teachers/${selectedTeacherId}/evaluations/${evaluationId}`);
     }
+  };
+
+  // Update E-SKP evaluation
+  const handleUpdateEvaluation = async (updatedEval: SKPEvaluation) => {
+    if (!selectedTeacherId || !user) return;
+    try {
+      const evalRef = doc(db, "teachers", selectedTeacherId, "evaluations", updatedEval.id);
+      const evalDoc: any = {
+        year: Number(updatedEval.year),
+        period: updatedEval.period,
+        rating: updatedEval.rating,
+        level: updatedEval.level,
+        coefficient: Number(updatedEval.coefficient),
+        multiplier: Number(updatedEval.multiplier),
+        creditEarned: Number(updatedEval.creditEarned),
+        akPendidikan: Number(updatedEval.akPendidikan) || 0,
+        notes: updatedEval.notes || "",
+        startDate: updatedEval.startDate || "",
+        endDate: updatedEval.endDate || "",
+        isCustomRange: updatedEval.isCustomRange || false,
+        customMonths: Number(updatedEval.customMonths) || 12,
+        skpFileLink: updatedEval.skpFileLink || "",
+        evidenceFileLink: updatedEval.evidenceFileLink || "",
+        overrideData: updatedEval.overrideData || null,
+        updatedAt: serverTimestamp()
+      };
+      await updateDoc(evalRef, evalDoc);
+      toast.success("Data evaluasi SKP dan riwayat PAK berhasil diperbarui.");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `teachers/${selectedTeacherId}/evaluations/${updatedEval.id}`);
+    }
+  };
+
+  const handlePrintEvaluation = (evalId: string) => {
+    setSelectedEvalIdForPrint(evalId);
+    setActiveTab("pak_report");
   };
 
   const handlePrint = () => {
@@ -1975,17 +2015,14 @@ export default function App() {
                           className="w-full text-xs border border-slate-300 bg-slate-100 rounded-lg p-2.5 text-slate-500 font-bold uppercase"
                         />
                       ) : (
-                        <select
+                        <SearchableSchoolSelect
                           value={newTeacherForm.school}
-                          onChange={e => setNewTeacherForm({ ...newTeacherForm, school: e.target.value })}
-                          className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-teal-500 text-slate-800"
-                          required
-                        >
-                          <option value="">-- PILIH UNIT KERJA SEKOLAH --</option>
-                          {schoolsList.map(s => (
-                            <option key={s.id} value={s.name}>{s.name} (NPSN: {s.id})</option>
-                          ))}
-                        </select>
+                          onChange={val => setNewTeacherForm({ ...newTeacherForm, school: val })}
+                          options={schoolsList.map(s => ({ id: s.id, name: s.name, npsn: s.npsn || s.id }))}
+                          allowAll={true}
+                          allLabel="-- PILIH UNIT KERJA SEKOLAH --"
+                          placeholder="Cari & pilih unit kerja..."
+                        />
                       )}
                       {user.role === 'super_admin' && schoolsList.length === 0 && (
                         <p className="text-[10px] text-rose-600 mt-1">
@@ -2191,16 +2228,14 @@ export default function App() {
                         className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-500 font-bold"
                       />
                     ) : (
-                      <select
+                      <SearchableSchoolSelect
                         value={filterSchool}
-                        onChange={e => setFilterSchool(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs focus:outline-teal-500 focus:bg-white text-slate-700 font-bold"
-                      >
-                        <option value="">Semua Sekolah</option>
-                        {schoolsList.map(s => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={val => setFilterSchool(val)}
+                        options={schoolsList.map(s => ({ id: s.id, name: s.name, npsn: s.npsn || s.id }))}
+                        allowAll={true}
+                        allLabel="Semua Sekolah"
+                        placeholder="Cari & filter sekolah..."
+                      />
                     )}
                   </div>
 
@@ -2877,6 +2912,8 @@ export default function App() {
                 evaluations={evaluations}
                 kopSettings={kopSettings}
                 setKopSettings={setKopSettings}
+                selectedEvalId={selectedEvalIdForPrint}
+                onSelectEvalId={setSelectedEvalIdForPrint}
               />
             </div>
  
@@ -2896,8 +2933,11 @@ export default function App() {
                 <ActivityLogTab
                   evaluations={evaluations}
                   onAddEvaluation={handleAddEvaluation}
+                  onUpdateEvaluation={handleUpdateEvaluation}
                   onDeleteEvaluation={handleDeleteEvaluation}
+                  onPrintEvaluation={handlePrintEvaluation}
                   currentGolonganLevel={getTeacherLevel(profile.currentGolongan)}
+                  profile={profile}
                 />
               )}
  
@@ -2908,6 +2948,8 @@ export default function App() {
                   evaluations={evaluations}
                   kopSettings={kopSettings}
                   setKopSettings={setKopSettings}
+                  selectedEvalId={selectedEvalIdForPrint}
+                  onSelectEvalId={setSelectedEvalIdForPrint}
                 />
               )}
  

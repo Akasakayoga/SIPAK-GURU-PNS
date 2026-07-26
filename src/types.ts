@@ -78,6 +78,31 @@ export interface SKPEvaluation {
   // Integrasi Tautan Berkas Fisik (Cloud Link Storage)
   skpFileLink?: string;
   evidenceFileLink?: string;
+
+  // Snapshot Data Khusus Periode/Tahun ini untuk Cetak PAK (Opsional, jika tidak diset menggunakan data profil utama)
+  overrideData?: {
+    // Data Personal Pegawai pada periode/tahun tersebut
+    currentGolongan?: GolonganID; // Pangkat/Golongan pada tahun tersebut
+    tmtCurrentPangkat?: string;
+    tmtCurrentJabatan?: string;
+    unitKerja?: string;
+    instansiBiro?: string;
+    
+    // Nomor Surat Keputusan PAK khusus periode/tahun ini
+    nomorSuratKonversi?: string; // page 1
+    nomorSuratAkumulasi?: string; // page 2
+    nomorSuratPenetapan?: string; // page 3
+    tempatDitetapkan?: string;
+    tanggalPenetapan?: string;
+    
+    // Data Pejabat Penilai Kinerja khusus periode/tahun ini
+    pejabatPenilaiTitle?: string;
+    pejabatPenilaiInstansi?: string;
+    pejabatPenilaiNama?: string;
+    pejabatPenilaiNip?: string;
+    pejabatPenilaiGolongan?: string;
+    pejabatPenilaiStatus?: 'definitif' | 'plt' | 'plh';
+  };
 }
 
 export interface GolonganDetail {
