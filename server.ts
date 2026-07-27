@@ -22,11 +22,16 @@ async function startServer() {
     console.log("Vite development middleware loaded.");
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res) => {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      }
+    }));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
-    console.log("Serving compiled production static assets.");
+    console.log("Serving compiled production static assets with CORS enabled.");
   }
 
   app.listen(PORT, "0.0.0.0", () => {

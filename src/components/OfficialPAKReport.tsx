@@ -252,19 +252,35 @@ export default function OfficialPAKReport({
 
       // 2. Gather all parent document styles (including Tailwind definitions) in sanitized form
       let parentStylesHtml = '';
-      document.querySelectorAll('style').forEach((tag) => {
-        const content = tag.innerHTML || tag.textContent || '';
-        if (content) {
-          parentStylesHtml += `<style>${replaceOklchInString(content)}</style>\n`;
-        }
-      });
+      const processedHrefs = new Set<string>();
 
-      // Also check local link tags
+      // Method A: Synchronously extract from document.styleSheets (captures both <style> and <link> in Dev & Prod)
+      try {
+        Array.from(document.styleSheets).forEach((sheet) => {
+          try {
+            if (sheet.href) processedHrefs.add(sheet.href);
+            let cssText = '';
+            const rules = sheet.cssRules || sheet.rules;
+            if (rules) {
+              Array.from(rules).forEach((rule) => {
+                cssText += rule.cssText + '\n';
+              });
+            }
+            if (cssText) {
+              parentStylesHtml += `<style>${replaceOklchInString(cssText)}</style>\n`;
+            }
+          } catch (e) {
+            // SecurityError if external cross-origin stylesheet without CORS, handled by fallback below
+          }
+        });
+      } catch (e) {}
+
+      // Method B: Fallback fetch for any <link rel="stylesheet"> not covered by styleSheets
       const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
       for (const link of linkTags) {
         try {
           const href = (link as HTMLLinkElement).href;
-          if (href) {
+          if (href && !processedHrefs.has(href)) {
             try {
               const resp = await fetch(href);
               if (resp.ok) {
@@ -278,6 +294,14 @@ export default function OfficialPAKReport({
           }
         } catch (e) {}
       }
+
+      // Method C: Gather all inline <style> tags
+      document.querySelectorAll('style').forEach((tag) => {
+        const content = tag.innerHTML || tag.textContent || '';
+        if (content) {
+          parentStylesHtml += `<style>${replaceOklchInString(content)}</style>\n`;
+        }
+      });
 
       // 3. Create a hidden, isolated iframe with exact F4 page dimensions (215mm x 330mm)
       iframe = document.createElement('iframe');
@@ -618,7 +642,6 @@ export default function OfficialPAKReport({
           window: iframe.contentWindow as any,
           document: iframeDoc as any,
           onclone: (clonedDoc: Document) => {
-            clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach(link => link.remove());
             clonedDoc.querySelectorAll('style').forEach(style => {
               if (style.textContent) {
                 style.textContent = replaceOklchInString(style.textContent);
