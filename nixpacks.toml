@@ -1,0 +1,11 @@
+# Railway / Nixpacks build configuration
+# Override default 'npm ci' with 'npm install' to prevent lockfile synchronization errors during deployment
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
