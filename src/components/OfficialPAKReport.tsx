@@ -48,65 +48,93 @@ function oklchToRgb(l: number, c: number, h: number, a: number = 1): string {
 
 function replaceOklchInString(cssText: string): string {
   if (!cssText || typeof cssText !== 'string') return cssText;
+
+  let result = cssText;
+
+  // 1. Remove all @supports blocks containing modern color spaces that html2canvas cannot parse
+  result = result.replace(/@supports\s*\(\s*color\s*:\s*(?:color-mix|oklch|oklab|lch|lab|light-dark)[^)]*\)\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, '');
+
+  // 2. Remove color space keywords from gradients and color-mix (e.g., "in oklab", "in oklch", "in lab", "in lch", "in srgb", "in hwb")
+  result = result.replace(/\bin\s+(?:oklch|oklab|lch|lab|srgb|srgb-linear|hwb|xyz|xyz-d50|xyz-d65)\b/gi, '');
+
+  // 3. Balanced parenthesis replacer for color functions
+  const colorFunctions = ['color-mix', 'light-dark', 'oklch', 'oklab', 'lch', 'lab', 'hwb', 'color'];
   
-  // Replace oklch(...)
-  let result = cssText.replace(/oklch\s*\(([^)]+)\)/gi, (match, innerText) => {
-    try {
-      const cleanedText = innerText.replace(/\//g, ' / ');
-      let parts = cleanedText.trim().split(/[\s,]+/);
-      parts = parts.filter((p: string) => p !== '/');
+  for (const funcName of colorFunctions) {
+    let searchIndex = 0;
+    const lowerFuncName = funcName.toLowerCase();
+    
+    while (true) {
+      const lowerStr = result.toLowerCase();
+      const idx = lowerStr.indexOf(lowerFuncName + '(', searchIndex);
+      if (idx === -1) break;
       
-      if (parts.length < 3) return '#808080';
-      
-      const lVal = parts[0];
-      const cVal = parts[1];
-      const hVal = parts[2];
-      const aVal = parts[3] || '1';
-      
-      let l = lVal.endsWith('%') ? parseFloat(lVal) / 100 : parseFloat(lVal);
-      let c = cVal.endsWith('%') ? (parseFloat(cVal) / 100) * 0.4 : parseFloat(cVal);
-      let h = 0;
-      if (hVal.toLowerCase().endsWith('deg')) {
-        h = parseFloat(hVal);
-      } else if (hVal.toLowerCase().endsWith('rad')) {
-        h = (parseFloat(hVal) * 180) / Math.PI;
-      } else if (hVal.toLowerCase().endsWith('turn')) {
-        h = parseFloat(hVal) * 360;
-      } else if (hVal.endsWith('%')) {
-        h = (parseFloat(hVal) / 100) * 360;
-      } else {
-        h = parseFloat(hVal);
+      // Find matching closing parenthesis
+      let depth = 0;
+      let endIdx = -1;
+      const startIdx = idx + funcName.length + 1;
+      for (let i = idx + funcName.length; i < result.length; i++) {
+        if (result[i] === '(') depth++;
+        else if (result[i] === ')') {
+          depth--;
+          if (depth === 0) {
+            endIdx = i;
+            break;
+          }
+        }
       }
       
-      let a = aVal.endsWith('%') ? parseFloat(aVal) / 100 : parseFloat(aVal);
-      
-      if (isNaN(l)) l = 0.5;
-      if (isNaN(c)) c = 0.1;
-      if (isNaN(h)) h = 0;
-      if (isNaN(a)) a = 1;
-      
-      l = Math.min(1, Math.max(0, l));
-      c = Math.min(1, Math.max(0, c));
-      a = Math.min(1, Math.max(0, a));
-      
-      return oklchToRgb(l, c, h, a);
-    } catch (e) {
-      return '#808080';
+      if (endIdx !== -1) {
+        const innerContent = result.substring(startIdx, endIdx);
+        let replacement = '#808080';
+        
+        // Try to convert simple oklch(...) to RGB if possible
+        if (lowerFuncName === 'oklch') {
+          try {
+            const cleanedText = innerContent.replace(/\//g, ' / ');
+            const parts = cleanedText.trim().split(/[\s,]+/).filter(p => p !== '/' && p !== '');
+            if (parts.length >= 3) {
+              const lVal = parts[0];
+              const cVal = parts[1];
+              const hVal = parts[2];
+              const aVal = parts[3] || '1';
+              
+              let l = lVal.endsWith('%') ? parseFloat(lVal) / 100 : parseFloat(lVal);
+              let c = cVal.endsWith('%') ? (parseFloat(cVal) / 100) * 0.4 : parseFloat(cVal);
+              let h = 0;
+              if (hVal.toLowerCase().endsWith('deg')) h = parseFloat(hVal);
+              else if (hVal.toLowerCase().endsWith('rad')) h = (parseFloat(hVal) * 180) / Math.PI;
+              else if (hVal.toLowerCase().endsWith('turn')) h = parseFloat(hVal) * 360;
+              else if (hVal.endsWith('%')) h = (parseFloat(hVal) / 100) * 360;
+              else h = parseFloat(hVal);
+              
+              let a = aVal.endsWith('%') ? parseFloat(aVal) / 100 : parseFloat(aVal);
+              if (!isNaN(l) && !isNaN(c) && !isNaN(h)) {
+                l = Math.min(1, Math.max(0, l));
+                c = Math.min(1, Math.max(0, c));
+                a = isNaN(a) ? 1 : Math.min(1, Math.max(0, a));
+                replacement = oklchToRgb(l, c, h, a);
+              }
+            }
+          } catch (e) {
+            replacement = '#808080';
+          }
+        }
+        
+        result = result.substring(0, idx) + replacement + result.substring(endIdx + 1);
+        searchIndex = idx + replacement.length;
+      } else {
+        break;
+      }
     }
-  });
+  }
 
-  // Replace oklab(...)
-  result = result.replace(/oklab\s*\(([^)]+)\)/gi, '#808080');
-
-  // Replace color-mix(...)
-  result = result.replace(/color-mix\s*\(([^)]+)\)/gi, '#808080');
-
-  // Replace light-dark(...)
-  result = result.replace(/light-dark\s*\(([^,]+),[^)]+\)/gi, '$1');
-
-  // Fallback for any remaining unparsed oklch or oklab statements
-  result = result.replace(/oklch\s*\([^;}]+\)/gi, '#808080');
-  result = result.replace(/oklab\s*\([^;}]+\)/gi, '#808080');
+  // 4. Fallback regex cleanup for any malformed or leftover strings
+  result = result.replace(/oklch\s*\([^;}]*/gi, '#808080');
+  result = result.replace(/oklab\s*\([^;}]*/gi, '#808080');
+  result = result.replace(/lch\s*\([^;}]*/gi, '#808080');
+  result = result.replace(/lab\s*\([^;}]*/gi, '#808080');
+  result = result.replace(/color-mix\s*\([^;}]*/gi, '#808080');
 
   return result;
 }
@@ -236,12 +264,16 @@ export default function OfficialPAKReport({
       for (const link of linkTags) {
         try {
           const href = (link as HTMLLinkElement).href;
-          if (href && (href.startsWith(window.location.origin) || href.startsWith('/') || !href.includes('://'))) {
-            const resp = await fetch(href);
-            if (resp.ok) {
-              const text = await resp.text();
-              const sanitized = replaceOklchInString(text);
-              parentStylesHtml += `<style>${sanitized}</style>\n`;
+          if (href) {
+            try {
+              const resp = await fetch(href);
+              if (resp.ok) {
+                const text = await resp.text();
+                const sanitized = replaceOklchInString(text);
+                parentStylesHtml += `<style>${sanitized}</style>\n`;
+              }
+            } catch (err) {
+              console.warn("Could not fetch linked stylesheet for print:", href);
             }
           }
         } catch (e) {}
@@ -301,7 +333,7 @@ export default function OfficialPAKReport({
       // Clean inline oklch styles from cloned node tree
       clonedElement.querySelectorAll('*').forEach((node) => {
         const el = node as HTMLElement;
-        if (el.style && el.style.cssText && (el.style.cssText.includes('oklch') || el.style.cssText.includes('oklab') || el.style.cssText.includes('color-mix'))) {
+        if (el.style && el.style.cssText) {
           el.style.cssText = replaceOklchInString(el.style.cssText);
         }
       });
@@ -586,9 +618,16 @@ export default function OfficialPAKReport({
           window: iframe.contentWindow as any,
           document: iframeDoc as any,
           onclone: (clonedDoc: Document) => {
+            clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach(link => link.remove());
             clonedDoc.querySelectorAll('style').forEach(style => {
-              if (style.textContent && style.textContent.includes('oklch')) {
+              if (style.textContent) {
                 style.textContent = replaceOklchInString(style.textContent);
+              }
+            });
+            clonedDoc.querySelectorAll('*').forEach(node => {
+              const el = node as HTMLElement;
+              if (el.style && el.style.cssText) {
+                el.style.cssText = replaceOklchInString(el.style.cssText);
               }
             });
           }
