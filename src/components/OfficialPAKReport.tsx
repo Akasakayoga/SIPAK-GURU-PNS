@@ -243,14 +243,7 @@ export default function OfficialPAKReport({
 
       toast.info("Sedang memproses & mengunduh berkas PDF PAK Resmi format F4/Folio...");
 
-      // 1. Proactively sanitize all <style> tags in the main window document to replace oklch/oklab with RGB/hex.
-      document.querySelectorAll('style').forEach((styleTag) => {
-        if (styleTag.textContent && (styleTag.textContent.includes('oklch') || styleTag.textContent.includes('oklab') || styleTag.textContent.includes('color-mix'))) {
-          styleTag.textContent = replaceOklchInString(styleTag.textContent);
-        }
-      });
-
-      // 2. Gather all parent document styles (including Tailwind definitions) in sanitized form
+      // 1. Gather all parent document styles (including Tailwind definitions) in sanitized form for the PDF iframe only
       let parentStylesHtml = '';
       const processedHrefs = new Set<string>();
 
