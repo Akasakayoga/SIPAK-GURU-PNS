@@ -86,7 +86,7 @@ function replaceOklchInString(cssText: string): string {
       
       if (endIdx !== -1) {
         const innerContent = result.substring(startIdx, endIdx);
-        let replacement = '#808080';
+        let replacement = '#cbd5e1';
         
         // Try to convert simple oklch(...) to RGB if possible
         if (lowerFuncName === 'oklch') {
@@ -117,7 +117,7 @@ function replaceOklchInString(cssText: string): string {
               }
             }
           } catch (e) {
-            replacement = '#808080';
+            replacement = '#cbd5e1';
           }
         }
         
@@ -130,11 +130,11 @@ function replaceOklchInString(cssText: string): string {
   }
 
   // 4. Fallback regex cleanup for any malformed or leftover strings
-  result = result.replace(/oklch\s*\([^;}]*/gi, '#808080');
-  result = result.replace(/oklab\s*\([^;}]*/gi, '#808080');
-  result = result.replace(/lch\s*\([^;}]*/gi, '#808080');
-  result = result.replace(/lab\s*\([^;}]*/gi, '#808080');
-  result = result.replace(/color-mix\s*\([^;}]*/gi, '#808080');
+  result = result.replace(/oklch\s*\([^;}]*/gi, '#cbd5e1');
+  result = result.replace(/oklab\s*\([^;}]*/gi, '#cbd5e1');
+  result = result.replace(/lch\s*\([^;}]*/gi, '#cbd5e1');
+  result = result.replace(/lab\s*\([^;}]*/gi, '#cbd5e1');
+  result = result.replace(/color-mix\s*\([^;}]*/gi, '#cbd5e1');
 
   return result;
 }
@@ -251,7 +251,6 @@ export default function OfficialPAKReport({
       try {
         Array.from(document.styleSheets).forEach((sheet) => {
           try {
-            if (sheet.href) processedHrefs.add(sheet.href);
             let cssText = '';
             const rules = sheet.cssRules || sheet.rules;
             if (rules) {
@@ -260,6 +259,7 @@ export default function OfficialPAKReport({
               });
             }
             if (cssText) {
+              if (sheet.href) processedHrefs.add(sheet.href);
               parentStylesHtml += `<style>${replaceOklchInString(cssText)}</style>\n`;
             }
           } catch (e) {
@@ -652,8 +652,39 @@ export default function OfficialPAKReport({
         pagebreak:    { mode: ['css', 'legacy'] }
       };
       
-      const pdfWorker = html2pdf().set(opt).from(iframeTarget);
-      await pdfWorker.save();
+      // Protect html2canvas global CSS parser from parent window's modern Tailwind stylesheets (oklch/color-mix)
+      // We temporarily insulate parent <style> tags and disable production <link> tags during the ~500ms PDF render,
+      // then immediately restore them in finally block so the user's live UI theme is 100% untouched and beautiful!
+      const parentStylesBackup: { el: HTMLStyleElement; text: string }[] = [];
+      const disabledLinks: HTMLLinkElement[] = [];
+
+      try {
+        document.querySelectorAll('style').forEach((styleEl) => {
+          const content = styleEl.textContent || '';
+          if (content.includes('oklch') || content.includes('oklab') || content.includes('color-mix')) {
+            parentStylesBackup.push({ el: styleEl, text: content });
+            styleEl.textContent = replaceOklchInString(content);
+          }
+        });
+
+        document.querySelectorAll('link[rel="stylesheet"]').forEach((linkNode) => {
+          const link = linkNode as HTMLLinkElement;
+          if (!link.disabled) {
+            link.disabled = true;
+            disabledLinks.push(link);
+          }
+        });
+
+        const pdfWorker = html2pdf().set(opt).from(iframeTarget);
+        await pdfWorker.save();
+      } finally {
+        parentStylesBackup.forEach(({ el, text }) => {
+          el.textContent = text;
+        });
+        disabledLinks.forEach((link) => {
+          link.disabled = false;
+        });
+      }
 
       swal.fire({
         title: "Dokumen PDF Berhasil Didownload!",
