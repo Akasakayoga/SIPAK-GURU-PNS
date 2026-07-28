@@ -46,15 +46,58 @@ function oklchToRgb(l: number, c: number, h: number, a: number = 1): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+function unwrapAtRule(cssText: string, ruleName: string): string {
+  let result = cssText;
+  if (ruleName === '@layer') {
+    result = result.replace(/@layer\s+[^;{]+;/gi, '');
+  }
+  let searchIndex = 0;
+  while (true) {
+    const idx = result.toLowerCase().indexOf(ruleName, searchIndex);
+    if (idx === -1) break;
+    const openBraceIdx = result.indexOf('{', idx);
+    if (openBraceIdx === -1) break;
+    const semiIdx = result.indexOf(';', idx);
+    if (semiIdx !== -1 && semiIdx < openBraceIdx) {
+      searchIndex = semiIdx + 1;
+      continue;
+    }
+    let depth = 0;
+    let closeBraceIdx = -1;
+    for (let i = openBraceIdx; i < result.length; i++) {
+      if (result[i] === '{') depth++;
+      else if (result[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          closeBraceIdx = i;
+          break;
+        }
+      }
+    }
+    if (closeBraceIdx !== -1) {
+      const inner = result.substring(openBraceIdx + 1, closeBraceIdx);
+      result = result.substring(0, idx) + inner + result.substring(closeBraceIdx + 1);
+      searchIndex = idx;
+    } else {
+      break;
+    }
+  }
+  return result;
+}
+
 function replaceOklchInString(cssText: string): string {
   if (!cssText || typeof cssText !== 'string') return cssText;
 
   let result = cssText;
 
-  // 1. Remove all @supports blocks containing modern color spaces that html2canvas cannot parse
-  result = result.replace(/@supports\s*\(\s*color\s*:\s*(?:color-mix|oklch|oklab|lch|lab|light-dark)[^)]*\)\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, '');
+  // 1. Remove @property blocks that legacy html2canvas parser cannot process
+  result = result.replace(/@property\s+[^\{]+\{[^\}]*\}/gi, '');
 
-  // 2. Remove color space keywords from gradients and color-mix (e.g., "in oklab", "in oklch", "in lab", "in lch", "in srgb", "in hwb")
+  // 2. Unwrap @layer and @supports blocks so all utility classes (flex, grid, borders, w-20, etc.) become standard top-level CSS rules!
+  result = unwrapAtRule(result, '@layer');
+  result = unwrapAtRule(result, '@supports');
+
+  // 3. Remove color space keywords from gradients and color-mix (e.g., "in oklab", "in oklch", "in lab", "in lch", "in srgb", "in hwb")
   result = result.replace(/\bin\s+(?:oklch|oklab|lch|lab|srgb|srgb-linear|hwb|xyz|xyz-d50|xyz-d65)\b/gi, '');
 
   // 3. Balanced parenthesis replacer for color functions
@@ -486,10 +529,18 @@ export default function OfficialPAKReport({
 
         /* Widths, Heights, Margins, Paddings */
         .w-full { width: 100% !important; }
+        .h-full { height: 100% !important; }
         .w-8 { width: 32px !important; }
         .h-8 { height: 32px !important; }
         .w-20 { width: 80px !important; }
-        .h-14 { height: 56px !important; }
+        .h-20 { height: 80px !important; }
+        .h-22 { height: 88px !important; }
+        .w-24 { width: 96px !important; }
+        .h-24 { height: 96px !important; }
+        .shrink-0 { flex-shrink: 0 !important; }
+        .max-w-full { max-width: 100% !important; }
+        .max-h-full { max-height: 100% !important; }
+        .object-cover { object-fit: cover !important; }
         .w-\\[4\\%\\] { width: 4% !important; }
         .w-\\[5\\%\\] { width: 5% !important; }
         .w-\\[10\\%\\] { width: 10% !important; }
@@ -527,7 +578,7 @@ export default function OfficialPAKReport({
         .mb-0\\.5 { margin-bottom: 2px !important; }
         .mb-1 { margin-bottom: 4px !important; }
         .mb-4 { margin-bottom: 16px !important; }
-        .p-2\\.5 { padding: 10px !important; }
+        [class*="p-2.5"], .p-2\\.5 { padding: 10px !important; }
         .pt-3 { padding-top: 12px !important; }
         .pt-4 { padding-top: 16px !important; }
         .pt-6 { padding-top: 24px !important; }
