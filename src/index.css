@@ -227,7 +227,7 @@
       margin-bottom: 6px !important;
     }
     
-    #pak-print-pages [class*="p-2.5"], #pak-print-pages .p-2\.5 {
+    #pak-print-pages [class*="p-2.5"] {
       padding: 6px !important;
     }
     

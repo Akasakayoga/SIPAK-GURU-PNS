@@ -578,7 +578,7 @@ export default function OfficialPAKReport({
         .mb-0\\.5 { margin-bottom: 2px !important; }
         .mb-1 { margin-bottom: 4px !important; }
         .mb-4 { margin-bottom: 16px !important; }
-        [class*="p-2.5"], .p-2\\.5 { padding: 10px !important; }
+        [class*="p-2.5"] { padding: 10px !important; }
         .pt-3 { padding-top: 12px !important; }
         .pt-4 { padding-top: 16px !important; }
         .pt-6 { padding-top: 24px !important; }
